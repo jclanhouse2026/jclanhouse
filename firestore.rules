@@ -1,0 +1,148 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin') ||
+        request.auth.token.email == "lanjc0245@gmail.com"
+      );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.user_id;
+    }
+
+    function uidUnchanged() {
+      return !('user_id' in request.resource.data) || request.resource.data.user_id == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('user_id' in request.resource.data) || request.resource.data.user_id == resource.data.user_id;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /profiles/{userId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if (isAuthenticated() && isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /subcategories/{subcategoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /portfolio_products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /portfolio_images/{imageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /themes/{themeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /my_works/{workId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /home_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /service_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /service_pricing/{pricingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /company_info/{infoId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.user_id) || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /sales/{saleId} {
+      allow read, delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if isAuthenticated() && uidUnchanged();
+      allow update: if isAuthenticated() && (isDocOwner() || isAdmin()) && uidNotModified();
+    }
+
+    match /expenses/{expenseId} {
+      allow read, delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if isAuthenticated() && uidUnchanged();
+      allow update: if isAuthenticated() && (isDocOwner() || isAdmin()) && uidNotModified();
+    }
+
+    match /customers/{customerId} {
+      allow read: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if isAuthenticated() && uidUnchanged();
+      allow update: if isAuthenticated() && (isDocOwner() || isAdmin()) && uidNotModified();
+      allow delete: if isAdmin();
+    }
+
+    match /resume_config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /resume_requests/{requestId} {
+      allow read, delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if isAuthenticated() && uidUnchanged();
+      allow update: if isAuthenticated() && (isDocOwner() || isAdmin()) && uidNotModified();
+    }
+
+    match /printers/{printerId} {
+      allow read, delete: if isAuthenticated() && isDocOwner();
+      allow create: if isAuthenticated() && uidUnchanged();
+      allow update: if isAuthenticated() && isDocOwner() && uidNotModified();
+    }
+
+    match /apostila_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /apostila_colors/{colorId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /apostila_orders/{orderId} {
+      allow read, delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if isAuthenticated() && uidUnchanged();
+      allow update: if isAuthenticated() && (isDocOwner() || isAdmin()) && uidNotModified();
+    }
+  }
+}
