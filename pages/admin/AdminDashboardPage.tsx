@@ -7,6 +7,7 @@ import DollarSignIcon from '../../components/icons/DollarSignIcon';
 import UserIcon from '../../components/icons/UserIcon';
 import ShoppingCartIcon from '../../components/icons/ShoppingCartIcon';
 import WalletIcon from '../../components/icons/WalletIcon';
+import ChevronLeftIcon from '../../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../../components/icons/ChevronRightIcon';
 
 const kpiData = [
@@ -49,7 +50,16 @@ const KpiCard: React.FC<typeof kpiData[0]> = ({ title, value, icon: Icon, change
 const AdminDashboardPage: React.FC = () => {
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-6">Dashboard</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <Link
+          to="/pdv"
+          className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-red-900/20"
+        >
+          <ChevronLeftIcon className="w-5 h-5" />
+          Voltar para o PDV
+        </Link>
+      </div>
       
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

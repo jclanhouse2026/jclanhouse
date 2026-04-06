@@ -14,9 +14,10 @@ const ThemeSelectionPage: React.FC = () => {
 
     const filteredThemes = useMemo(() => {
         return themes.filter(theme => {
+            const isCaderneta = theme.type === 'caderneta' || !theme.type;
             const matchesCategory = activeCategory === 'TODOS' || theme.category === activeCategory;
             const matchesSearch = theme.name.toLowerCase().includes(searchTerm.toLowerCase());
-            return matchesCategory && matchesSearch;
+            return isCaderneta && matchesCategory && matchesSearch;
         });
     }, [activeCategory, searchTerm, themes]);
 
@@ -27,13 +28,10 @@ const ThemeSelectionPage: React.FC = () => {
                 <div className="container mx-auto px-4 py-16 sm:px-6 lg:px-8">
                     <div className="text-center mb-12">
                         <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
-                            ESCOLHA O SEU <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-500">TEMA</span>
+                            CADERNETA DE <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-500">VACINA</span>
                         </h1>
-                        <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-500">FAVORITO</span>
-                        </h2>
                         <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-400">
-                            Nossas cadernetas possuem capa dura, laminação prototora e miolo oficial atualizado. Escolha um tema abaixo para personalizar.
+                            Nossas cadernetas possuem capa dura, laminação protetora e miolo oficial atualizado. Escolha um tema abaixo para personalizar.
                         </p>
                     </div>
                     

@@ -12,6 +12,7 @@ import { usePortfolio } from '../../context/PortfolioContext';
 import { useCategories } from '../../context/CategoryContext';
 import type { PortfolioProduct, PortfolioImage } from '../../types';
 import { formatCurrency } from '../../lib/formatters';
+import { optimizeImage, fileToBase64 } from '../../lib/imageUtils';
 
 const AdminPortfolioPage: React.FC = () => {
     const { products, addProduct, updateProduct, deleteProduct } = usePortfolio();
@@ -30,22 +31,16 @@ const AdminPortfolioPage: React.FC = () => {
     };
 
     const handleDelete = (productId: string) => {
-        if (window.confirm('Tem certeza que deseja excluir este produto?')) {
-            deleteProduct(productId);
-        }
+        deleteProduct(productId);
     };
     
     const handleSave = async (productData: Omit<PortfolioProduct, 'id'> & { id?: string }) => {
-        try {
-            if (productData.id) {
-                await updateProduct(productData as PortfolioProduct);
-            } else {
-                await addProduct(productData);
-            }
-            closeModal();
-        } catch (error) {
-            alert(`Erro ao salvar o produto: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+        if (productData.id) {
+            await updateProduct(productData as PortfolioProduct);
+        } else {
+            await addProduct(productData);
         }
+        closeModal();
     };
 
     const getCategoryName = (product: PortfolioProduct) => {
@@ -133,6 +128,9 @@ const ProductModal: React.FC<{ product: PortfolioProduct | null; onSave: (data: 
     const [images, setImages] = useState<PortfolioImage[]>(product?.images || []);
     const [categoryId, setCategoryId] = useState<string>(product?.categoryId?.toString() || '');
     const [subcategoryId, setSubcategoryId] = useState<string>(product?.subcategoryId?.toString() || '');
+    const [isUploading, setIsUploading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState('');
     
     const availableSubcategories = useMemo(() => {
         if (!categoryId) return [];
@@ -145,15 +143,31 @@ const ProductModal: React.FC<{ product: PortfolioProduct | null; onSave: (data: 
         setSubcategoryId(''); // Reset subcategory when category changes
     }
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const files = Array.from(e.target.files);
-            const newImages = files.map((file: File) => ({ id: (Date.now() + Math.random()).toString(), url: URL.createObjectURL(file), file }));
-            if(images.length + newImages.length > 5) {
+            const files = Array.from(e.target.files) as File[];
+            
+            if(images.length + files.length > 5) {
                 alert('Você pode enviar no máximo 5 imagens.');
+                e.target.value = '';
                 return;
             }
+
+            setIsUploading(true);
+            const newImages: PortfolioImage[] = [];
+            for (const file of files) {
+                try {
+                    const optimizedFile = await optimizeImage(file, 800, 1000, 0.8);
+                    const base64 = await fileToBase64(optimizedFile);
+                    newImages.push({ id: (Date.now() + Math.random()).toString(), url: base64, file: optimizedFile });
+                } catch (error) {
+                    console.error("Erro ao processar imagem:", error);
+                }
+            }
+            
             setImages(prev => [...prev, ...newImages]);
+            setIsUploading(false);
+            e.target.value = '';
         }
     };
 
@@ -163,21 +177,31 @@ const ProductModal: React.FC<{ product: PortfolioProduct | null; onSave: (data: 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
+        
         if(images.length === 0) {
-            alert('Adicione pelo menos uma imagem.');
+            setError('Adicione pelo menos uma imagem.');
             return;
         }
-        await onSave({
-            id: product?.id,
-            name,
-            description,
-            originalPrice,
-            promoPrice: promoPrice === '' ? undefined : Number(promoPrice),
-            type,
-            images,
-            categoryId: categoryId ? categoryId : undefined,
-            subcategoryId: subcategoryId ? subcategoryId : undefined
-        });
+        
+        setIsSaving(true);
+        try {
+            await onSave({
+                id: product?.id,
+                name,
+                description,
+                originalPrice,
+                promoPrice: promoPrice === '' ? undefined : Number(promoPrice),
+                type,
+                images,
+                categoryId: categoryId ? categoryId : undefined,
+                subcategoryId: subcategoryId ? subcategoryId : undefined
+            });
+        } catch (err) {
+            setError(`Erro ao salvar o produto: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -247,9 +271,20 @@ const ProductModal: React.FC<{ product: PortfolioProduct | null; onSave: (data: 
                         </div>
                     </div>
 
-                    <div className="p-4 bg-slate-800/50 border-t border-slate-700 text-right">
-                        <button type="button" onClick={onClose} className="bg-slate-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-700 transition-colors mr-2">Cancelar</button>
-                        <button type="submit" className="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition-colors">Salvar Produto</button>
+                    <div className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-between items-center">
+                        <div className="flex-1">
+                            {error && <p className="text-red-400 text-sm">{error}</p>}
+                        </div>
+                        <div className="flex gap-2">
+                            <button type="button" onClick={onClose} disabled={isUploading || isSaving} className="bg-slate-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50">Cancelar</button>
+                            <button type="submit" disabled={isUploading || isSaving} className="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition-colors disabled:opacity-50 flex items-center gap-2 inline-flex">
+                                {isUploading || isSaving ? (
+                                    <><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div> {isSaving ? 'Salvando...' : 'Carregando...'}</>
+                                ) : (
+                                    'Salvar Produto'
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>

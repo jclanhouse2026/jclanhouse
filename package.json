@@ -10,6 +10,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/genai": "^1.48.0",
     "firebase": "^12.11.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.1.0",

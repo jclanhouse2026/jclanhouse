@@ -45,7 +45,7 @@ const Step6TemplatesAndPreview: React.FC = () => {
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
         
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`curriculo_${resumeData.profile.name.replace(' ', '_')}.pdf`);
+        pdf.save(`curriculo_${(resumeData.profile.name || 'Curriculo').replace(' ', '_')}.pdf`);
     };
 
     return (

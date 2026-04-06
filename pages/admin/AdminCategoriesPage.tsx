@@ -57,16 +57,10 @@ const AdminCategoriesPage: React.FC = () => {
     };
     
     const handleDelete = (type: 'category' | 'subcategory', id: string, parentId?: string) => {
-        const confirmMsg = type === 'category'
-            ? 'Tem certeza que deseja excluir esta categoria e todas as suas subcategorias?'
-            : 'Tem certeza que deseja excluir esta subcategoria?';
-
-        if(window.confirm(confirmMsg)) {
-            if (type === 'category') {
-                deleteCategory(id);
-            } else if (type === 'subcategory' && parentId) {
-                 deleteSubcategory(parentId, id);
-            }
+        if (type === 'category') {
+            deleteCategory(id);
+        } else if (type === 'subcategory' && parentId) {
+             deleteSubcategory(parentId, id);
         }
     };
 

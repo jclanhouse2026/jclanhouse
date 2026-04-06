@@ -31,13 +31,11 @@ const ResumeRequestsList: React.FC = () => {
     };
 
     const handleDelete = async (id: string) => {
-        if (window.confirm('Tem certeza que deseja excluir esta solicitação de currículo? Esta ação não pode ser desfeita.')) {
-            try {
-                await deleteResumeRequest(id);
-            } catch (error) {
-                console.error("Failed to delete resume request:", error);
-                alert("Não foi possível excluir a solicitação.");
-            }
+        try {
+            await deleteResumeRequest(id);
+        } catch (error) {
+            console.error("Failed to delete resume request:", error);
+            alert("Não foi possível excluir a solicitação.");
         }
     };
     
@@ -63,7 +61,7 @@ const ResumeRequestsList: React.FC = () => {
                 const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
                 
                 pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save(`curriculo_${downloadingResume.profile.name.replace(/\s/g, '_')}.pdf`);
+                pdf.save(`curriculo_${(downloadingResume.profile.name || 'Curriculo').replace(/\s/g, '_')}.pdf`);
                 
                 setDownloadingResume(null);
             };

@@ -56,9 +56,7 @@ const AdminServicesSettingsPage: React.FC = () => {
     };
     
     const removeItem = (id: string) => {
-        if(window.confirm('Tem certeza que deseja remover este serviço?')) {
-            setLocalSettings(prev => prev.filter(item => item.id !== id));
-        }
+        setLocalSettings(prev => prev.filter(item => item.id !== id));
     };
 
     return (

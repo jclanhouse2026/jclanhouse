@@ -6,7 +6,9 @@ import {
     signOut, 
     onAuthStateChanged,
     updatePassword,
-    User as FirebaseUser
+    User as FirebaseUser,
+    signInWithPopup,
+    GoogleAuthProvider
 } from 'firebase/auth';
 import { 
     doc, 
@@ -41,6 +43,7 @@ const dataURLtoBlob = (dataurl: string): Blob | null => {
 interface AuthContextType {
   user: User | null;
   login: (identifier: string, pass: string, rememberMe: boolean) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (name: string, email: string, username: string, pass: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -162,7 +165,53 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
                  throw new Error('Credenciais inválidas.');
             }
+            if (error.code === 'auth/too-many-requests') {
+                 throw new Error('Muitas tentativas de login. Tente novamente mais tarde.');
+            }
+            if (error.code === 'auth/network-request-failed') {
+                 throw new Error('Erro de conexão. Verifique sua internet ou se o domínio está autorizado no Firebase.');
+            }
             throw new Error(error.message);
+        }
+    };
+
+    const loginWithGoogle = async (): Promise<void> => {
+        try {
+            const provider = new GoogleAuthProvider();
+            const result = await signInWithPopup(auth, provider);
+            const firebaseUser = result.user;
+            
+            // Check if profile exists
+            const docRef = doc(db, 'profiles', firebaseUser.uid);
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) {
+                // Register new user
+                const defaultProfile = {
+                    username: firebaseUser.email?.split('@')[0] || 'user',
+                    name: firebaseUser.displayName || 'Usuário',
+                    email: firebaseUser.email || '',
+                    avatar_url: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${(firebaseUser.displayName || 'User').replace(' ', '+')}&background=0891b2&color=fff`,
+                    role: 'client',
+                    is_premium: false,
+                    has_billing: false,
+                    pdv_access_status: 'none',
+                    status: 'active'
+                };
+                
+                await setDoc(docRef, defaultProfile);
+            }
+            
+            await updateUserState(firebaseUser);
+        } catch (error: any) {
+            console.error("Google login error:", error);
+            if (error.code === 'auth/popup-closed-by-user') {
+                throw new Error('Login cancelado pelo usuário.');
+            }
+            if (error.code === 'auth/network-request-failed') {
+                 throw new Error('Erro de conexão. Verifique sua internet ou se o domínio está autorizado no Firebase.');
+            }
+            throw new Error('Falha ao autenticar com o Google.');
         }
     };
 
@@ -197,6 +246,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } catch (error: any) {
             if (error.code === 'auth/email-already-in-use') {
                 throw new Error('Este email já está em uso.');
+            }
+            if (error.code === 'auth/weak-password') {
+                throw new Error('A senha deve ter pelo menos 6 caracteres.');
+            }
+            if (error.code === 'auth/invalid-email') {
+                throw new Error('O email fornecido é inválido.');
+            }
+            if (error.code === 'auth/network-request-failed') {
+                 throw new Error('Erro de conexão. Verifique sua internet ou se o domínio está autorizado no Firebase.');
             }
             throw new Error(error.message);
         }
@@ -240,23 +298,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const adminUpdateUser = async (userId: string, updates: Partial<User>): Promise<Partial<User>> => {
         if (user && user.id === userId && updates.password && auth.currentUser) {
-            await updatePassword(auth.currentUser, updates.password);
+            try {
+                await updatePassword(auth.currentUser, updates.password);
+            } catch (error: any) {
+                if (error.code === 'auth/requires-recent-login') {
+                    throw new Error('Para alterar a senha, você precisa ter feito login recentemente. Por favor, saia e entre novamente.');
+                }
+                if (error.code === 'auth/weak-password') {
+                    throw new Error('A nova senha deve ter pelo menos 6 caracteres.');
+                }
+                throw new Error(error.message);
+            }
         }
     
         const profileUpdates: { [key: string]: any } = {};
         const appliedUpdates: Partial<User> = {};
     
         if (updates.avatarUrl && updates.avatarUrl.startsWith('data:image')) {
-            const blob = dataURLtoBlob(updates.avatarUrl);
-            if (!blob) throw new Error('Invalid avatar image data');
-            const filePath = `${AVATAR_BUCKET}/${userId}/${Date.now()}.jpg`;
-            const storageRef = ref(storage, filePath);
-            
-            await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
-            const publicUrl = await getDownloadURL(storageRef);
-            
-            profileUpdates.avatar_url = publicUrl;
-            appliedUpdates.avatarUrl = publicUrl;
+            // Salvar a imagem em base64 diretamente no Firestore para evitar problemas com o Storage
+            profileUpdates.avatar_url = updates.avatarUrl;
+            appliedUpdates.avatarUrl = updates.avatarUrl;
         } else if (updates.avatarUrl) {
             profileUpdates.avatar_url = updates.avatarUrl;
         }
@@ -294,6 +355,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const value = {
         user,
         login,
+        loginWithGoogle,
         register,
         logout,
         isAuthenticated,

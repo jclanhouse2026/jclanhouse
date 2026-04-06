@@ -80,7 +80,7 @@ const CustomerAddressPage: React.FC = () => {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (user?.id) {
-            updateCurrentCustomer(user.id, { address: { ...address, cep: address.cep.replace(/\D/g, '')} });
+            updateCurrentCustomer(user.id, { address: { ...address, cep: (address.cep || '').replace(/\D/g, '')} });
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 2000);
         }

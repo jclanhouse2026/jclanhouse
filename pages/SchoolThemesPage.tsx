@@ -14,9 +14,10 @@ const SchoolThemesPage: React.FC = () => {
 
     const filteredThemes = useMemo(() => {
         return themes.filter(theme => {
+            const isEscolar = theme.type === 'escolar';
             const matchesCategory = activeCategory === 'TODOS' || theme.category === activeCategory;
             const matchesSearch = theme.name.toLowerCase().includes(searchTerm.toLowerCase());
-            return matchesCategory && matchesSearch;
+            return isEscolar && matchesCategory && matchesSearch;
         });
     }, [activeCategory, searchTerm, themes]);
 

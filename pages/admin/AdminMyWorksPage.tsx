@@ -153,13 +153,11 @@ const AdminMyWorksPage: React.FC = () => {
     }
 
     const handleDelete = async (workId: string) => {
-        if (window.confirm('Tem certeza que deseja excluir este trabalho?')) {
-            try {
-                await deleteWork(workId);
-            } catch (err: any) {
-                console.error("Failed to delete work:", err);
-                alert("Erro ao excluir trabalho: " + err.message);
-            }
+        try {
+            await deleteWork(workId);
+        } catch (err: any) {
+            console.error("Failed to delete work:", err);
+            alert("Erro ao excluir trabalho: " + err.message);
         }
     };
 

@@ -34,17 +34,25 @@ const SaleModal: React.FC<{
     onSaleComplete: (sale: Sale) => void;
     customers: Customer[];
     addCustomer: (c: Omit<Customer, 'id' | 'userId' | 'signupDate' | 'status'>) => Promise<Customer>;
-}> = ({ onClose, onSaleComplete, customers, addCustomer }) => {
+    initialSale?: Sale;
+}> = ({ onClose, onSaleComplete, customers, addCustomer, initialSale }) => {
     const { products } = usePortfolio();
-    const { addSale: saveSaleToContext } = useSales();
+    const { addSale: saveSaleToContext, updateSale } = useSales();
     const [step, setStep] = useState<SaleStep>('cart');
-    const [cart, setCart] = useState<SaleCartItem[]>([]);
+    const [cart, setCart] = useState<SaleCartItem[]>(initialSale ? initialSale.items.map((item, idx) => ({
+        id: idx, // Using index as ID since SaleItem doesn't have an ID
+        name: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice
+    })) : []);
     const [searchTerm, setSearchTerm] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
-    const [amountPaid, setAmountPaid] = useState<number>(0);
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialSale?.paymentMethod as PaymentMethod || null);
+    const [amountPaid, setAmountPaid] = useState<number>(initialSale?.amountPaid || 0);
     
     // Customer state
-    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+        initialSale ? customers.find(c => c.fullName === initialSale.customerName) || null : null
+    );
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
 
     // Discount state
@@ -68,10 +76,37 @@ const SaleModal: React.FC<{
 
     const change = useMemo(() => (paymentMethod === 'cash' && amountPaid > total) ? amountPaid - total : 0, [amountPaid, total, paymentMethod]);
 
+    const handleSaveOrder = async () => {
+        const saleData = {
+            customerName: selectedCustomer?.fullName || initialSale?.customerName || 'Sem Cadastro',
+            phone: selectedCustomer?.phone || initialSale?.phone || '',
+            total: total,
+            amountPaid: 0,
+            paymentMethod: 'N/A',
+            items: cart.map(item => ({
+                productName: item.name,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                discount: 0,
+                observation: ''
+            })),
+            status: 'em_aberto' as const
+        };
+        
+        if (initialSale) {
+            await updateSale(initialSale.id, saleData);
+        } else {
+            await saveSaleToContext(saleData);
+        }
+        
+        alert('Pedido salvo com sucesso!');
+        onClose();
+    };
+
     const handleConfirmPayment = async () => {
         const saleData = {
-            customerName: selectedCustomer?.fullName || 'Sem Cadastro',
-            phone: selectedCustomer?.phone || '',
+            customerName: selectedCustomer?.fullName || initialSale?.customerName || 'Sem Cadastro',
+            phone: selectedCustomer?.phone || initialSale?.phone || '',
             total: total,
             amountPaid: paymentMethod === 'cash' ? amountPaid : total,
             paymentMethod: paymentMethod || 'N/A',
@@ -81,10 +116,19 @@ const SaleModal: React.FC<{
                 unitPrice: item.unitPrice,
                 discount: 0, // Individual item discount not implemented yet
                 observation: ''
-            }))
+            })),
+            status: 'finalizado' as const
         };
-        const newSale = await saveSaleToContext(saleData);
-        onSaleComplete(newSale);
+        
+        let savedSale: Sale;
+        if (initialSale) {
+            await updateSale(initialSale.id, saleData);
+            savedSale = { ...initialSale, ...saleData };
+        } else {
+            savedSale = await saveSaleToContext(saleData);
+        }
+        
+        onSaleComplete(savedSale);
         setStep('receipt');
     };
 
@@ -221,9 +265,14 @@ const SaleModal: React.FC<{
                     <span className="text-white">Total</span>
                     <span className="text-cyan-400">{formatCurrency(total)}</span>
                 </div>
-                <button onClick={() => setStep('payment')} disabled={cart.length === 0} className="w-full bg-cyan-600 text-white font-bold py-3 rounded-lg hover:bg-cyan-700 disabled:bg-slate-600 disabled:cursor-not-allowed">
-                    IR PARA PAGAMENTO
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={handleSaveOrder} disabled={cart.length === 0} className="flex-1 bg-slate-700 text-white font-bold py-3 rounded-lg hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed">
+                        SALVAR PEDIDO
+                    </button>
+                    <button onClick={() => setStep('payment')} disabled={cart.length === 0} className="flex-1 bg-cyan-600 text-white font-bold py-3 rounded-lg hover:bg-cyan-700 disabled:bg-slate-600 disabled:cursor-not-allowed">
+                        IR PARA PAGAMENTO
+                    </button>
+                </div>
             </div>
             {isCustomerModalOpen && <CustomerModal customers={customers} onSelect={handleSelectCustomer} onAdd={handleAddNewCustomer} onClose={() => setIsCustomerModalOpen(false)} />}
         </>

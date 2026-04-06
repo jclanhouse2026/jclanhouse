@@ -147,13 +147,11 @@ const AdminUsersPage: React.FC = () => {
     };
     
     const handleDeleteUser = async (userId: string) => {
-        if (window.confirm('Tem certeza que deseja desativar este usuário? Ele não poderá mais acessar o sistema.')) {
-            try {
-                await adminDeleteUser(userId);
-                fetchUsers();
-            } catch(err) {
-                 alert(`Erro ao desativar usuário: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
-            }
+        try {
+            await adminDeleteUser(userId);
+            fetchUsers();
+        } catch(err) {
+             alert(`Erro ao desativar usuário: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
         }
     };
 
@@ -214,7 +212,7 @@ const AdminUsersPage: React.FC = () => {
                                         <td className="py-3 pr-3">
                                             <div className="flex items-center gap-3">
                                                 <img 
-                                                    src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name.replace(' ', '+')}&background=0891b2&color=fff`} 
+                                                    src={user.avatarUrl || `https://ui-avatars.com/api/?name=${(user.name || 'User').replace(' ', '+')}&background=0891b2&color=fff`} 
                                                     alt={user.name} 
                                                     className="w-9 h-9 rounded-full object-cover"
                                                 />

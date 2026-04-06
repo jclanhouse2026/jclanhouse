@@ -63,17 +63,21 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let publicUrl = '';
 
     if (imageUrl.startsWith('data:image')) {
-        const blob = dataURLtoBlob(imageUrl);
-        if (!blob) throw new Error('Dados de imagem inválidos');
-        const filePath = `${THEME_BUCKET}/${Date.now()}.jpg`;
-        const storageRef = ref(storage, filePath);
-        await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
-        publicUrl = await getDownloadURL(storageRef);
+        // Salvar a imagem em base64 diretamente no Firestore para evitar problemas com o Storage
+        publicUrl = imageUrl;
     } else {
         publicUrl = imageUrl;
     }
     
-    const newThemeData = { ...restThemeData, imageUrl: publicUrl, user_id: user.id };
+    const newThemeData: any = { ...restThemeData, imageUrl: publicUrl, user_id: user.id };
+    
+    // Remover campos undefined para evitar erro no Firestore
+    Object.keys(newThemeData).forEach(key => {
+      if (newThemeData[key] === undefined) {
+        delete newThemeData[key];
+      }
+    });
+
     const docRef = await addDoc(collection(db, 'themes'), newThemeData);
     
     const newTheme: Theme = {
@@ -81,6 +85,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         name: newThemeData.name,
         category: newThemeData.category as any,
         imageUrl: newThemeData.imageUrl,
+        type: newThemeData.type,
     };
     
     setThemes(prevThemes => [newTheme, ...prevThemes]);
@@ -91,28 +96,20 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let publicUrl = imageUrl;
 
     if (imageUrl.startsWith('data:image')) {
-        const oldTheme = themes.find(t => t.id === id);
-        if (oldTheme?.imageUrl && !oldTheme.imageUrl.startsWith('data:image')) {
-            try {
-                const urlObj = new URL(oldTheme.imageUrl);
-                const pathParts = urlObj.pathname.split('/o/');
-                if (pathParts.length > 1) {
-                    const filePath = decodeURIComponent(pathParts[1].split('?')[0]);
-                    const storageRef = ref(storage, filePath);
-                    await deleteObject(storageRef);
-                }
-            } catch (e) { console.error("Não foi possível analisar ou deletar a imagem antiga do tema", e); }
-        }
-
-        const blob = dataURLtoBlob(imageUrl);
-        if (!blob) throw new Error('Dados de imagem inválidos');
-        const filePath = `${THEME_BUCKET}/${id}/${Date.now()}.jpg`;
-        const storageRef = ref(storage, filePath);
-        await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
-        publicUrl = await getDownloadURL(storageRef);
+        // Não precisamos mais deletar do Firebase Storage, pois estamos salvando em base64 no Firestore
+        publicUrl = imageUrl;
     }
 
-    await updateDoc(doc(db, 'themes', id), { ...restThemeData, imageUrl: publicUrl });
+    const updateData: any = { ...restThemeData, imageUrl: publicUrl };
+    
+    // Remover campos undefined para evitar erro no Firestore
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
+    await updateDoc(doc(db, 'themes', id), updateData);
     
     setThemes(prevThemes =>
       prevThemes.map(t => (t.id === updatedTheme.id ? { ...updatedTheme, imageUrl: publicUrl } : t))
@@ -120,19 +117,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const deleteTheme = async (themeId: string) => {
-    const themeToDelete = themes.find(t => t.id === themeId);
-    if (themeToDelete?.imageUrl && !themeToDelete.imageUrl.startsWith('data:image')) {
-        try {
-            const urlObj = new URL(themeToDelete.imageUrl);
-            const pathParts = urlObj.pathname.split('/o/');
-            if (pathParts.length > 1) {
-                const filePath = decodeURIComponent(pathParts[1].split('?')[0]);
-                const storageRef = ref(storage, filePath);
-                await deleteObject(storageRef);
-            }
-        } catch (e) { console.error("Não foi possível deletar a imagem do tema do storage", e); }
-    }
-      
+    // Não precisamos mais deletar do Firebase Storage, pois estamos salvando em base64 no Firestore
     await deleteDoc(doc(db, 'themes', themeId));
     setThemes(prevThemes => prevThemes.filter(t => t.id !== themeId));
   };

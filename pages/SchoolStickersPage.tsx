@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ShoppingCartIcon from '../components/icons/ShoppingCartIcon';
@@ -9,6 +9,7 @@ import DocumentIcon from '../components/icons/DocumentIcon';
 import WaterDropIcon from '../components/icons/WaterDropIcon';
 import { useThemes } from '../context/ThemeContext';
 import { useServicePricing } from '../context/ServicePricingContext';
+import { useCart } from '../context/CartContext';
 import { formatCurrency } from '../lib/formatters';
 
 const materialIcons: { [key: string]: React.ElementType } = {
@@ -20,6 +21,8 @@ const SchoolStickersPage: React.FC = () => {
     const { themeId } = useParams<{ themeId: string }>();
     const { themes } = useThemes();
     const { pricing, loading: pricingLoading } = useServicePricing();
+    const { addToCart } = useCart();
+    const navigate = useNavigate();
     const { adesivos_escolares: stickersPricing } = pricing;
 
     const selectedTheme = useMemo(() => {
@@ -46,6 +49,23 @@ const SchoolStickersPage: React.FC = () => {
         return selectedPackage?.price || 0;
     }, [selectedPackage]);
     
+    const handleAddToCart = () => {
+        if (!selectedTheme || !selectedPackage || !selectedMaterial) return;
+
+        addToCart({
+            productId: `adesivos-${selectedTheme.id}`,
+            name: `Adesivos Escolares (${selectedPackage.name}) - Tema: ${selectedTheme.name}`,
+            image: selectedTheme.imageUrl,
+            quantity: 1,
+            unitPrice: totalPrice,
+            customization: {
+                text: `Nome: ${studentName || 'Não informado'}, Série: ${studentGrade || 'Não informado'}, Escola: ${studentSchool || 'Não informado'} | Material: ${selectedMaterial.name}`
+            }
+        });
+
+        navigate('/carrinho');
+    };
+
     if (pricingLoading) {
         return <div className="min-h-screen bg-slate-900 text-white text-center p-8">Carregando...</div>
     }
@@ -203,7 +223,10 @@ const SchoolStickersPage: React.FC = () => {
                                 </div>
                             </OptionSection>
 
-                            <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg flex items-center justify-center gap-3 transition-colors">
+                            <button 
+                                onClick={handleAddToCart}
+                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg flex items-center justify-center gap-3 transition-colors"
+                            >
                                 <ShoppingCartIcon className="w-5 h-5" />
                                 ADICIONAR AO CARRINHO
                             </button>

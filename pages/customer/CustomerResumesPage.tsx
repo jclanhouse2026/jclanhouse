@@ -45,7 +45,7 @@ const CustomerResumesPage: React.FC = () => {
                 const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
                 
                 pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save(`curriculo_${downloadingResume.profile.name.replace(/\s/g, '_')}.pdf`);
+                pdf.save(`curriculo_${(downloadingResume.profile.name || 'Curriculo').replace(/\s/g, '_')}.pdf`);
 
                 setDownloadingResume(null);
             };

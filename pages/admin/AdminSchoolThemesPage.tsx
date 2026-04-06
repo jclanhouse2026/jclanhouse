@@ -10,6 +10,7 @@ import XCircleIcon from '../../components/icons/XCircleIcon';
 import UploadIcon from '../../components/icons/UploadIcon';
 import { useThemes } from '../../context/ThemeContext';
 import type { Theme, ThemeCategory } from '../../types';
+import MultiThemeModal from '../../components/admin/MultiThemeModal';
 
 // Função auxiliar para criar a imagem cortada usando Canvas
 const createCroppedImage = (imageSrc: string, crop: Area): Promise<string> => {
@@ -48,11 +49,12 @@ const createCroppedImage = (imageSrc: string, crop: Area): Promise<string> => {
     });
 };
 
-
 const AdminSchoolThemesPage: React.FC = () => {
     const { themes, addTheme, updateTheme, deleteTheme } = useThemes();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
+
+    const escolarThemes = themes.filter(t => t.type === 'escolar');
 
     const openModal = (theme: Theme | null = null) => {
         setEditingTheme(theme);
@@ -65,18 +67,16 @@ const AdminSchoolThemesPage: React.FC = () => {
     };
 
     const handleDelete = (themeId: string) => {
-        if (window.confirm('Tem certeza que deseja excluir este tema?')) {
-            deleteTheme(themeId);
-        }
+        deleteTheme(themeId);
     };
     
-    const handleSave = (themeData: Omit<Theme, 'id'> & { id?: string }) => {
-        if (themeData.id) {
-            updateTheme(themeData as Theme);
+    const handleSave = async (themeData: Omit<Theme, 'id'> & { id?: string }) => {
+        const dataWithType = { ...themeData, type: 'escolar' as const };
+        if (dataWithType.id) {
+            await updateTheme(dataWithType as Theme);
         } else {
-            addTheme(themeData);
+            await addTheme(dataWithType);
         }
-        closeModal();
     };
     
     const getCategoryBadge = (category: ThemeCategory) => {
@@ -106,7 +106,7 @@ const AdminSchoolThemesPage: React.FC = () => {
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {themes.map(theme => (
+                {escolarThemes.map(theme => (
                     <div key={theme.id} className="bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700 group">
                         <div className="relative aspect-[4/5]">
                             <img src={theme.imageUrl} alt={theme.name} className="w-full h-full object-cover" />
@@ -122,155 +122,13 @@ const AdminSchoolThemesPage: React.FC = () => {
                     </div>
                 ))}
             </div>
-            {themes.length === 0 && (
+            {escolarThemes.length === 0 && (
                 <div className="text-center py-16 text-slate-400 bg-slate-800 rounded-lg">
                     <p>Nenhum tema cadastrado.</p>
                 </div>
             )}
             
-            {isModalOpen && <ThemeModal theme={editingTheme} onSave={handleSave} onClose={closeModal} />}
-        </div>
-    );
-};
-
-
-const ImageCropModal: React.FC<{ imageSrc: string; onComplete: (croppedImage: string) => void; onClose: () => void; }> = ({ imageSrc, onComplete, onClose }) => {
-    const [crop, setCrop] = useState({ x: 0, y: 0 });
-    const [zoom, setZoom] = useState(1);
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
-
-    const onCropComplete = useCallback((_croppedArea: Area, croppedAreaPixels: Area) => {
-        setCroppedAreaPixels(croppedAreaPixels);
-    }, []);
-    
-    const handleCrop = async () => {
-        if (imageSrc && croppedAreaPixels) {
-            try {
-                const croppedImage = await createCroppedImage(imageSrc, croppedAreaPixels);
-                onComplete(croppedImage);
-            } catch (e) {
-                console.error('Erro ao cortar imagem:', e);
-            }
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/80 z-[60] flex flex-col p-4">
-            <div className="relative flex-1">
-                <Cropper
-                    image={imageSrc}
-                    crop={crop}
-                    zoom={zoom}
-                    aspect={4 / 5}
-                    onCropChange={setCrop}
-                    onZoomChange={setZoom}
-                    onCropComplete={onCropComplete}
-                />
-            </div>
-            <div className="h-24 flex-shrink-0 flex items-center justify-center gap-4">
-                <button onClick={onClose} className="bg-slate-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-700 transition-colors">Cancelar</button>
-                <button onClick={handleCrop} className="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition-colors">Aplicar Corte</button>
-            </div>
-        </div>
-    );
-};
-
-
-const ThemeModal: React.FC<{ theme: Theme | null; onSave: (data: Omit<Theme, 'id'> & { id?: string }) => void; onClose: () => void; }> = ({ theme, onSave, onClose }) => {
-    const [name, setName] = useState(theme?.name || '');
-    const [category, setCategory] = useState<ThemeCategory>(theme?.category || 'UNISSEX');
-    
-    const [imageToCrop, setImageToCrop] = useState<string | null>(null);
-    const [croppedImage, setCroppedImage] = useState<string | null>(theme?.imageUrl || null);
-    
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.addEventListener('load', () => {
-                setImageToCrop(reader.result as string);
-            });
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleCropComplete = (croppedDataUrl: string) => {
-        setCroppedImage(croppedDataUrl);
-        setImageToCrop(null);
-    }
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!croppedImage) {
-            alert('Por favor, adicione uma imagem para o tema.');
-            return;
-        }
-        onSave({ id: theme?.id, name, imageUrl: croppedImage, category });
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4">
-            <div className="bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg border border-slate-700">
-                <form onSubmit={handleSubmit}>
-                    <div className="flex justify-between items-center p-4 border-b border-slate-700">
-                        <h2 className="text-lg font-bold text-white">{theme ? 'Editar Tema' : 'Adicionar Novo Tema'}</h2>
-                        <button type="button" onClick={onClose}><XCircleIcon className="w-6 h-6 text-slate-400 hover:text-white"/></button>
-                    </div>
-                    <div className="p-6 space-y-4">
-                        <div>
-                            <label className="text-sm font-bold text-slate-300 block mb-2">Nome do Tema</label>
-                            <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-3 bg-slate-700 rounded-md text-white border border-slate-600" required />
-                        </div>
-                        
-                         <div>
-                            <label className="text-sm font-bold text-slate-300 block mb-2">Imagem do Tema</label>
-                            <div 
-                                className="aspect-[4/5] w-full max-w-xs mx-auto bg-slate-700 rounded-lg border-2 border-dashed border-slate-600 flex items-center justify-center text-center cursor-pointer hover:border-cyan-500"
-                                onClick={() => fileInputRef.current?.click()}
-                            >
-                                {croppedImage ? (
-                                    <img src={croppedImage} alt="Preview do tema" className="w-full h-full object-cover rounded-lg" />
-                                ) : (
-                                    <div className="text-slate-400 p-4">
-                                        <UploadIcon className="w-10 h-10 mx-auto" />
-                                        <p className="mt-2 text-sm font-semibold">Clique para enviar</p>
-                                        <p className="text-xs mt-1">Recomendado: 400x500px</p>
-                                    </div>
-                                )}
-                            </div>
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                className="hidden" 
-                                accept="image/*" 
-                                onChange={onFileChange} 
-                            />
-                        </div>
-                        
-                         <div>
-                            <label className="text-sm font-bold text-slate-300 block mb-2">Categoria</label>
-                            <select value={category} onChange={e => setCategory(e.target.value as ThemeCategory)} className="w-full p-3 bg-slate-700 rounded-md text-white border border-slate-600">
-                                <option value="MENINO">Menino</option>
-                                <option value="MENINA">Menina</option>
-                                <option value="UNISSEX">Unissex</option>
-                            </select>
-                        </div>
-                    </div>
-                     <div className="p-4 bg-slate-800/50 border-t border-slate-700 text-right">
-                        <button type="button" onClick={onClose} className="bg-slate-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-700 transition-colors mr-2">Cancelar</button>
-                        <button type="submit" className="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition-colors">Salvar Tema</button>
-                    </div>
-                </form>
-            </div>
-            {imageToCrop && (
-                <ImageCropModal 
-                    imageSrc={imageToCrop} 
-                    onComplete={handleCropComplete}
-                    onClose={() => setImageToCrop(null)} 
-                />
-            )}
+            {isModalOpen && <MultiThemeModal theme={editingTheme} onSave={handleSave} onClose={closeModal} />}
         </div>
     );
 };

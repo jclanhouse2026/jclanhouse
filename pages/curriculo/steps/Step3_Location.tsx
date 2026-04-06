@@ -63,7 +63,7 @@ const Step3_Location: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-1 relative">
-                    <InputField label="CEP" name="cep" value={resumeData.profile.address.cep.replace(/(\d{5})(\d)/, '$1-$2')} onChange={handleCepChange} onBlur={handleCepBlur} placeholder="00000-000" maxLength={9} />
+                    <InputField label="CEP" name="cep" value={(resumeData.profile.address.cep || '').replace(/(\d{5})(\d)/, '$1-$2')} onChange={handleCepChange} onBlur={handleCepBlur} placeholder="00000-000" maxLength={9} />
                     {loadingCep && <div className="absolute top-9 right-3 h-5 w-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>}
                 </div>
                 <InputField label="Estado" name="state" value={resumeData.profile.address.state} onChange={() => {}} placeholder="Estado" readOnly disabled />

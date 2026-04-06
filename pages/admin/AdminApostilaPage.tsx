@@ -96,7 +96,6 @@ const AdminApostilaPage: React.FC<AdminApostilaPageProps> = ({ hideHeader = fals
   };
 
   const handleDeleteColor = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta cor?')) return;
     try {
       await deleteDoc(doc(db, 'apostila_colors', id));
     } catch (error) {

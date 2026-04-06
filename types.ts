@@ -88,6 +88,7 @@ export interface Theme {
   name: string;
   category: ThemeCategory;
   imageUrl: string;
+  type?: 'caderneta' | 'escolar';
 }
 
 

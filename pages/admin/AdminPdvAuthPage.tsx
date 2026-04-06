@@ -75,7 +75,7 @@ const AdminPdvAuthPage: React.FC = () => {
                 <div key={user.id} className="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center border border-slate-700">
                     <div className="flex items-center gap-3">
                         <img 
-                            src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name.replace(' ', '+')}&background=0891b2&color=fff`} 
+                            src={user.avatarUrl || `https://ui-avatars.com/api/?name=${(user.name || 'User').replace(' ', '+')}&background=0891b2&color=fff`} 
                             alt={user.name} 
                             className="w-10 h-10 rounded-full object-cover"
                         />

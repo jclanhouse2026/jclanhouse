@@ -122,7 +122,7 @@ const AdminLayout: React.FC = () => {
             <div className="relative">
               <button onClick={() => setProfileOpen(!profileOpen)} className="flex items-center gap-2">
                 <img
-                  src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${user?.name.replace(' ', '+')}&background=0891b2&color=fff`}
+                  src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${(user?.name || 'Admin').replace(' ', '+')}&background=0891b2&color=fff`}
                   alt="Admin"
                   className="w-9 h-9 rounded-full border-2 border-cyan-400 object-cover"
                 />

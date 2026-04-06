@@ -1,18 +1,21 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, deleteDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
 
-type SaleItem = {
+export type SaleStatus = 'orcamento' | 'em_aberto' | 'finalizado' | 'cancelado';
+
+export type SaleItem = {
     productName: string;
     quantity: number;
     unitPrice: number;
     discount: number;
     observation: string;
 };
+
 export type Sale = {
   id: string;
-  userId: string; // ID of the user who made the sale
+  userId: string;
   customerName: string;
   phone: string;
   total: number;
@@ -20,12 +23,15 @@ export type Sale = {
   items: SaleItem[];
   amountPaid?: number;
   paymentMethod?: string;
+  status: SaleStatus;
 };
 
 interface SalesContextType {
-  sales: Sale[]; // All sales for admin view
-  salesForCurrentUser: Sale[]; // Filtered for logged-in user
+  sales: Sale[];
+  salesForCurrentUser: Sale[];
   addSale: (saleData: Omit<Sale, 'id' | 'userId' | 'dateTime'>) => Promise<Sale>;
+  updateSale: (id: string, saleData: Partial<Sale>) => Promise<void>;
+  deleteSale: (id: string) => Promise<void>;
 }
 
 const SalesContext = createContext<SalesContextType | undefined>(undefined);
@@ -35,37 +41,36 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [sales, setSales] = useState<Sale[]>([]);
 
   useEffect(() => {
-    const fetchSales = async () => {
-        if (!user) {
-            setSales([]);
-            return;
-        }
+    if (!user) {
+        setSales([]);
+        return;
+    }
 
-        try {
-            const q = query(collection(db, 'sales'), orderBy('date_time', 'desc'));
-            const querySnapshot = await getDocs(q);
-            
-            const formattedData = querySnapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    userId: data.user_id,
-                    customerName: data.customer_name,
-                    phone: data.phone,
-                    total: data.total,
-                    dateTime: new Date(data.date_time),
-                    items: data.items,
-                    amountPaid: data.amount_paid,
-                    paymentMethod: data.payment_method,
-                };
-            });
-            setSales(formattedData);
-        } catch (e) {
-            console.error("Exceção ao buscar histórico de vendas:", (e as Error).message);
-            setSales([]);
-        }
-    };
-    fetchSales();
+    const q = query(collection(db, 'sales'), orderBy('date_time', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const formattedData = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                userId: data.user_id,
+                customerName: data.customer_name,
+                phone: data.phone,
+                total: data.total,
+                dateTime: new Date(data.date_time),
+                items: data.items,
+                amountPaid: data.amount_paid,
+                paymentMethod: data.payment_method,
+                status: data.status || 'finalizado', // Default para antigas
+            };
+        });
+        setSales(formattedData);
+    }, (error) => {
+        console.error("Exceção ao buscar histórico de vendas:", error.message);
+        setSales([]);
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   const salesForCurrentUser = useMemo(() => {
@@ -85,12 +90,13 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       date_time: new Date().toISOString(),
       items: saleData.items,
       amount_paid: saleData.amountPaid,
-      payment_method: saleData.paymentMethod
+      payment_method: saleData.paymentMethod,
+      status: saleData.status
     };
     
     const docRef = await addDoc(collection(db, 'sales'), newSaleData);
 
-    const newSale: Sale = {
+    return {
       id: docRef.id,
       userId: newSaleData.user_id,
       customerName: newSaleData.customer_name,
@@ -100,14 +106,29 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       items: newSaleData.items,
       amountPaid: newSaleData.amount_paid,
       paymentMethod: newSaleData.payment_method,
+      status: newSaleData.status as SaleStatus
     };
-    
-    setSales(prevSales => [newSale, ...prevSales]);
-    return newSale;
+  };
+
+  const updateSale = async (id: string, saleData: Partial<Sale>) => {
+      const updateData: any = {};
+      if (saleData.customerName !== undefined) updateData.customer_name = saleData.customerName;
+      if (saleData.phone !== undefined) updateData.phone = saleData.phone;
+      if (saleData.total !== undefined) updateData.total = saleData.total;
+      if (saleData.items !== undefined) updateData.items = saleData.items;
+      if (saleData.amountPaid !== undefined) updateData.amount_paid = saleData.amountPaid;
+      if (saleData.paymentMethod !== undefined) updateData.payment_method = saleData.paymentMethod;
+      if (saleData.status !== undefined) updateData.status = saleData.status;
+
+      await updateDoc(doc(db, 'sales', id), updateData);
+  };
+
+  const deleteSale = async (id: string) => {
+      await deleteDoc(doc(db, 'sales', id));
   };
 
   return (
-    <SalesContext.Provider value={{ sales, salesForCurrentUser, addSale }}>
+    <SalesContext.Provider value={{ sales, salesForCurrentUser, addSale, updateSale, deleteSale }}>
       {children}
     </SalesContext.Provider>
   );

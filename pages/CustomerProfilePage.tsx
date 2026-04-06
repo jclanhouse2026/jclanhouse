@@ -23,7 +23,7 @@ const CustomerProfilePage: React.FC = () => {
         if (currentUser) {
             setFullName(currentUser.fullName);
             setPhone(currentUser.phone);
-            setAvatarUrl(currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${currentUser.fullName.replace(' ', '+')}&background=0891b2&color=fff`);
+            setAvatarUrl(currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${(currentUser.fullName || 'User').replace(' ', '+')}&background=0891b2&color=fff`);
         }
         if (user) {
             setEmail(user.email || '');

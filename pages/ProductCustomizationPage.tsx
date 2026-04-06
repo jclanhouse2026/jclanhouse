@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import SparklesIcon from '../components/icons/SparklesIcon';
 import ShoppingCartIcon from '../components/icons/ShoppingCartIcon';
 import { useThemes } from '../context/ThemeContext';
 import { useServicePricing } from '../context/ServicePricingContext';
+import { useCart } from '../context/CartContext';
 import { formatCurrency } from '../lib/formatters';
 
 const ProductCustomizationPage: React.FC = () => {
     const { themeId } = useParams<{ themeId: string }>();
     const { themes } = useThemes();
     const { pricing, loading: pricingLoading } = useServicePricing();
+    const { addToCart } = useCart();
+    const navigate = useNavigate();
     const { caderneta: cadernetaPricing } = pricing;
 
     const theme = useMemo(() => {
@@ -40,6 +43,27 @@ const ProductCustomizationPage: React.FC = () => {
                 ? prev.filter(a => a.id !== addon.id)
                 : [...prev, addon]
         );
+    };
+
+    const handleAddToCart = () => {
+        if (!theme || !selectedMainOption) return;
+
+        const addonsText = selectedAddons.length > 0 
+            ? ` + Adicionais: ${selectedAddons.map(a => a.name).join(', ')}` 
+            : '';
+
+        addToCart({
+            productId: `caderneta-${theme.id}`,
+            name: `Caderneta de Vacina (${selectedMainOption.name}) - Tema: ${theme.name}`,
+            image: theme.imageUrl,
+            quantity: 1,
+            unitPrice: totalPrice,
+            customization: {
+                text: `Nome da Criança: ${childName || 'Não informado'}${addonsText}`
+            }
+        });
+
+        navigate('/carrinho');
     };
 
     if (pricingLoading) {
@@ -160,7 +184,10 @@ const ProductCustomizationPage: React.FC = () => {
                             </div>
 
                             <div>
-                                <button className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg flex items-center justify-center gap-3 transition-colors">
+                                <button 
+                                    onClick={handleAddToCart}
+                                    className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg flex items-center justify-center gap-3 transition-colors"
+                                >
                                     <ShoppingCartIcon className="w-5 h-5" />
                                     CONFIRMAR E CARRINHO
                                 </button>

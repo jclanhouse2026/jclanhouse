@@ -52,8 +52,30 @@ const ServicesPage: React.FC = () => {
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="bg-slate-800 p-8 rounded-2xl shadow-lg border border-slate-700/50 flex flex-col h-full transition-all duration-300 transform hover:-translate-y-1 hover:shadow-orange-500/10 hover:border-slate-700">
+              <div className="flex items-center justify-center h-14 w-14 rounded-xl mb-6 bg-orange-500/10">
+                <PrinterIcon className="h-7 w-7 text-orange-400" />
+              </div>
+              <h3 className="text-xl font-bold mb-3 text-white">Caderneta de Vacina</h3>
+              <p className="text-slate-400 mb-6 flex-grow">Personalize a caderneta de vacina com o tema favorito da criança. Capa dura, laminação e miolo atualizado.</p>
+              <Link to="/caderneta" className="font-semibold text-orange-400 hover:text-orange-300 transition-colors group">
+                  ESCOLHER TEMA <span className="inline-block transform group-hover:translate-x-1 transition-transform">&rarr;</span>
+              </Link>
+            </div>
+
+            <div className="bg-slate-800 p-8 rounded-2xl shadow-lg border border-slate-700/50 flex flex-col h-full transition-all duration-300 transform hover:-translate-y-1 hover:shadow-indigo-500/10 hover:border-slate-700">
+              <div className="flex items-center justify-center h-14 w-14 rounded-xl mb-6 bg-indigo-500/10">
+                <PrinterIcon className="h-7 w-7 text-indigo-400" />
+              </div>
+              <h3 className="text-xl font-bold mb-3 text-white">Adesivos Escolares</h3>
+              <p className="text-slate-400 mb-6 flex-grow">Kits de adesivos escolares personalizados com o tema favorito da criança. Material à prova d'água.</p>
+              <Link to="/temas-escolares" className="font-semibold text-indigo-400 hover:text-indigo-300 transition-colors group">
+                  ESCOLHER TEMA <span className="inline-block transform group-hover:translate-x-1 transition-transform">&rarr;</span>
+              </Link>
+            </div>
+
             {serviceSettings.map((service, index) => (
-              <ServiceCard key={service.id} service={service} colors={iconColors[index % iconColors.length]} />
+              <ServiceCard key={service.id} service={service} colors={iconColors[(index + 2) % iconColors.length]} />
             ))}
           </div>
         </div>

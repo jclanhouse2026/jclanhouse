@@ -57,27 +57,31 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     if (!user) throw new Error("Usuário não autenticado para adicionar produto.");
     const { images, ...productInfo } = productData;
     
-    const newProductData = {
+    const newProductData: any = {
         user_id: user.id,
         name: productInfo.name,
         description: productInfo.description,
         original_price: productInfo.originalPrice,
         promo_price: productInfo.promoPrice,
         type: productInfo.type,
-        category_id: productInfo.categoryId,
-        subcategory_id: productInfo.subcategoryId,
+        category_id: productInfo.categoryId || null,
+        subcategory_id: productInfo.subcategoryId || null,
     };
+
+    // Remover campos undefined para evitar erro no Firestore
+    Object.keys(newProductData).forEach(key => {
+      if (newProductData[key] === undefined) {
+        delete newProductData[key];
+      }
+    });
 
     const docRef = await addDoc(collection(db, 'portfolio_products'), newProductData);
     
     const uploadedImageRecords: { product_id: string; url: string }[] = [];
     for (const img of images) {
       if (img.file) {
-        const filePath = `${BUCKET_NAME}/${docRef.id}/${Date.now()}_${img.file.name}`;
-        const storageRef = ref(storage, filePath);
-        await uploadBytes(storageRef, img.file);
-        const url = await getDownloadURL(storageRef);
-        uploadedImageRecords.push({ product_id: docRef.id, url });
+        // Salvar a imagem em base64 diretamente no Firestore para evitar problemas com o Storage
+        uploadedImageRecords.push({ product_id: docRef.id, url: img.url });
       }
     }
 
@@ -109,38 +113,31 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
   const updateProduct = async (updatedProduct: PortfolioProduct) => {
     const { id, images, ...productInfo } = updatedProduct;
 
-    await updateDoc(doc(db, 'portfolio_products', id), {
+    const updateData: any = {
         name: productInfo.name,
         description: productInfo.description,
         original_price: productInfo.originalPrice,
         promo_price: productInfo.promoPrice,
         type: productInfo.type,
-        category_id: productInfo.categoryId,
-        subcategory_id: productInfo.subcategoryId,
+        category_id: productInfo.categoryId || null,
+        subcategory_id: productInfo.subcategoryId || null,
+    };
+
+    // Remover campos undefined para evitar erro no Firestore
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
     });
+
+    await updateDoc(doc(db, 'portfolio_products', id), updateData);
     
     const oldImagesQuery = query(collection(db, 'portfolio_images'), where('product_id', '==', id));
     const oldImagesSnapshot = await getDocs(oldImagesQuery);
     
     const oldImages = oldImagesSnapshot.docs.map(doc => ({ id: doc.id, url: doc.data().url }));
 
-    if (oldImages && oldImages.length > 0) {
-      for (const img of oldImages) {
-        try {
-            // Extrair o caminho do storage da URL (simplificado, pode precisar de ajuste dependendo do formato da URL do Firebase Storage)
-            const urlObj = new URL(img.url);
-            const pathParts = urlObj.pathname.split('/o/');
-            if (pathParts.length > 1) {
-                const filePath = decodeURIComponent(pathParts[1].split('?')[0]);
-                const storageRef = ref(storage, filePath);
-                await deleteObject(storageRef);
-            }
-        } catch (e) {
-            console.error("Erro ao deletar imagem antiga do storage:", e);
-        }
-      }
-    }
-
+    // Não precisamos mais deletar do Firebase Storage, pois estamos salvando em base64 no Firestore
     const batch = writeBatch(db);
     oldImagesSnapshot.docs.forEach(doc => {
         batch.delete(doc.ref);
@@ -150,11 +147,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const newImageRecords: { product_id: string; url: string; }[] = [];
     for (const img of images) {
         if (img.file) { // New image to upload
-            const filePath = `${BUCKET_NAME}/${id}/${Date.now()}_${img.file.name}`;
-            const storageRef = ref(storage, filePath);
-            await uploadBytes(storageRef, img.file);
-            const url = await getDownloadURL(storageRef);
-            newImageRecords.push({ product_id: id, url });
+            // Salvar a imagem em base64 diretamente no Firestore
+            newImageRecords.push({ product_id: id, url: img.url });
         } else { // Existing image to keep
             newImageRecords.push({ product_id: id, url: img.url });
         }
@@ -181,20 +175,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const images = imagesSnapshot.docs.map(doc => ({ id: doc.id, url: doc.data().url }));
     
     if (images && images.length > 0) {
-        for (const img of images) {
-            try {
-                const urlObj = new URL(img.url);
-                const pathParts = urlObj.pathname.split('/o/');
-                if (pathParts.length > 1) {
-                    const filePath = decodeURIComponent(pathParts[1].split('?')[0]);
-                    const storageRef = ref(storage, filePath);
-                    await deleteObject(storageRef);
-                }
-            } catch (e) {
-                console.error("Erro ao deletar imagem do storage:", e);
-            }
-        }
-        
+        // Não precisamos mais deletar do Firebase Storage, pois estamos salvando em base64 no Firestore
         const batch = writeBatch(db);
         imagesSnapshot.docs.forEach(doc => {
             batch.delete(doc.ref);

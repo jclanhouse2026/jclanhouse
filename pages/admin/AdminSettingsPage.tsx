@@ -30,7 +30,7 @@ const AdminSettingsPage: React.FC = () => {
       setAdminName(user.name);
       setAdminUsername(user.username || '');
       setAdminEmail(user.email || '');
-      setAvatarUrl(user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name.replace(' ', '+')}&background=0891b2&color=fff`);
+      setAvatarUrl(user.avatarUrl || `https://ui-avatars.com/api/?name=${(user.name || 'User').replace(' ', '+')}&background=0891b2&color=fff`);
     }
   }, [user]);
 
@@ -43,6 +43,7 @@ const AdminSettingsPage: React.FC = () => {
         };
         reader.readAsDataURL(file);
     }
+    e.target.value = '';
   };
 
   const handleSave = async () => {
