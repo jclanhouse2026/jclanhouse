@@ -1,44 +1,17 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { auth, db, storage } from '../lib/firebase';
+import { auth } from '../lib/firebase';
 import { 
     signInWithEmailAndPassword, 
     createUserWithEmailAndPassword, 
     signOut, 
     onAuthStateChanged,
     updatePassword,
+    sendPasswordResetEmail,
     User as FirebaseUser,
     signInWithPopup,
     GoogleAuthProvider
 } from 'firebase/auth';
-import { 
-    doc, 
-    getDoc, 
-    setDoc, 
-    updateDoc, 
-    collection, 
-    query, 
-    where, 
-    getDocs 
-} from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import type { User, UserRole } from '../types';
-
-const AVATAR_BUCKET = 'avatars';
-
-const dataURLtoBlob = (dataurl: string): Blob | null => {
-    const arr = dataurl.split(',');
-    if (arr.length < 2) return null;
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    if (!mimeMatch) return null;
-    const mime = mimeMatch[1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new Blob([u8arr], { type: mime });
-};
+import type { User, UserRole, PdvAccessStatus } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -46,94 +19,124 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   register: (name: string, email: string, username: string, pass: string) => Promise<void>;
   logout: () => void;
+  resetPassword: (email: string) => Promise<void>;
   isAuthenticated: boolean;
   adminGetAllUsers: () => Promise<User[]>;
   adminUpdateUserRole: (userId: string, role: UserRole) => Promise<void>;
-  adminCreateUser: (details: { name: string; email: string; username: string; pass: string }) => Promise<void>;
+  adminCreateUser: (details: { name: string; email: string; username: string; pass: string; role?: UserRole; pdvAccessStatus?: PdvAccessStatus }) => Promise<void>;
   adminUpdateUser: (userId: string, updates: Partial<User>) => Promise<Partial<User>>;
   adminDeleteUser: (userId: string) => Promise<void>;
   authorizePdvAccess: (userId: string) => Promise<void>;
   revokePdvAccess: (userId: string) => Promise<void>;
   refetchUser: () => Promise<void>;
+  uploadFile: (file: File, path: string) => Promise<string>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Helper for local storage profiles
+const getLocalProfiles = (): Record<string, any> => {
+    try {
+        const data = localStorage.getItem('app_profiles');
+        return data ? JSON.parse(data) : {};
+    } catch {
+        return {};
+    }
+};
+
+const saveLocalProfiles = (profiles: Record<string, any>) => {
+    localStorage.setItem('app_profiles', JSON.stringify(profiles));
+};
+
+const ADMIN_EMAILS = ['jclanhouse2012@hotmail.com.br', 'lanjc0245@gmail.com', 'admin@jclanhouse.com'];
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const updateUserState = async (firebaseUser: FirebaseUser | null) => {
-        if (!firebaseUser) {
-            setUser(null);
-            return;
-        }
-
-        try {
-            const docRef = doc(db, 'profiles', firebaseUser.uid);
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                const profileData = docSnap.data();
-                setUser({
-                    id: firebaseUser.uid,
-                    email: firebaseUser.email || '',
-                    name: profileData.name || 'Usuário',
-                    username: profileData.username,
-                    role: profileData.role || 'client',
-                    isPremium: profileData.is_premium || false,
-                    hasBilling: profileData.has_billing || false,
-                    avatarUrl: profileData.avatar_url,
-                    pdvAccessStatus: profileData.pdv_access_status || 'none',
-                    status: profileData.status || 'active',
-                });
-            } else {
-                // If profile doesn't exist, create a default one
-                const defaultProfile = {
-                    id: firebaseUser.uid,
-                    email: firebaseUser.email || '',
-                    name: firebaseUser.displayName || 'Usuário',
-                    username: firebaseUser.email?.split('@')[0] || 'user',
-                    role: 'client',
-                    isPremium: false,
-                    hasBilling: false,
-                    avatarUrl: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=User&background=0891b2&color=fff`,
-                    pdvAccessStatus: 'none',
-                    status: 'active',
-                };
-                
-                await setDoc(docRef, {
-                    username: defaultProfile.username,
-                    name: defaultProfile.name,
-                    avatar_url: defaultProfile.avatarUrl,
-                    role: defaultProfile.role,
-                    is_premium: defaultProfile.isPremium,
-                    has_billing: defaultProfile.hasBilling,
-                    pdv_access_status: defaultProfile.pdvAccessStatus,
-                    status: defaultProfile.status
-                });
-
-                setUser(defaultProfile);
-            }
-        } catch (e) {
-            console.error("Exceção ao buscar perfil:", (e as Error).message);
-            setUser(null);
-        }
-    };
-
     const refetchUser = async () => {
         if (auth.currentUser) {
-            await updateUserState(auth.currentUser);
+            const profiles = getLocalProfiles();
+            const profileData = profiles[auth.currentUser.uid];
+            const isAdminEmail = auth.currentUser.email ? ADMIN_EMAILS.includes(auth.currentUser.email) : false;
+            
+            if (profileData) {
+                setUser({
+                    id: auth.currentUser.uid,
+                    email: auth.currentUser.email || '',
+                    name: profileData.name || 'Usuário',
+                    username: profileData.username,
+                    role: isAdminEmail ? 'admin' : (profileData.role || 'client'),
+                    isPremium: isAdminEmail || profileData.is_premium || false,
+                    hasBilling: isAdminEmail || profileData.has_billing || false,
+                    avatarUrl: profileData.avatar_url,
+                    photoURL: profileData.photo_url || profileData.avatar_url,
+                    pdvAccessStatus: isAdminEmail ? 'authorized' : (profileData.pdv_access_status || 'none'),
+                    status: profileData.status || 'active',
+                });
+            }
         }
     };
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            await updateUserState(firebaseUser);
-            setLoading(false);
+        const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
+                const profiles = getLocalProfiles();
+                let profileData = profiles[firebaseUser.uid];
+                const isAdminEmail = firebaseUser.email ? ADMIN_EMAILS.includes(firebaseUser.email) : false;
+                
+                if (profileData) {
+                    setUser({
+                        id: firebaseUser.uid,
+                        email: firebaseUser.email || '',
+                        name: profileData.name || 'Usuário',
+                        username: profileData.username,
+                        role: isAdminEmail ? 'admin' : (profileData.role || 'client'),
+                        isPremium: isAdminEmail || profileData.is_premium || false,
+                        hasBilling: isAdminEmail || profileData.has_billing || false,
+                        avatarUrl: profileData.avatar_url,
+                        photoURL: profileData.photo_url || profileData.avatar_url,
+                        pdvAccessStatus: isAdminEmail ? 'authorized' : (profileData.pdv_access_status || 'none'),
+                        status: profileData.status || 'active',
+                    });
+                } else {
+                    const defaultProfile: User = {
+                        id: firebaseUser.uid,
+                        email: firebaseUser.email || '',
+                        name: firebaseUser.displayName || 'Usuário',
+                        username: firebaseUser.email?.split('@')[0] || 'user',
+                        role: isAdminEmail ? 'admin' : 'client',
+                        isPremium: isAdminEmail,
+                        hasBilling: isAdminEmail,
+                        avatarUrl: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=User&background=0891b2&color=fff`,
+                        photoURL: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=User&background=0891b2&color=fff`,
+                        pdvAccessStatus: isAdminEmail ? 'authorized' : 'none',
+                        status: 'active',
+                    };
+                    
+                    profiles[firebaseUser.uid] = {
+                        username: defaultProfile.username,
+                        name: defaultProfile.name,
+                        avatar_url: defaultProfile.avatarUrl,
+                        role: defaultProfile.role,
+                        is_premium: defaultProfile.isPremium,
+                        has_billing: defaultProfile.hasBilling,
+                        pdv_access_status: defaultProfile.pdvAccessStatus,
+                        status: defaultProfile.status
+                    };
+                    saveLocalProfiles(profiles);
+                    setUser(defaultProfile);
+                }
+                setLoading(false);
+            } else {
+                setUser(null);
+                setLoading(false);
+            }
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribeAuth();
+        };
     }, []);
 
     const login = async (identifier: string, pass: string, rememberMe: boolean): Promise<void> => {
@@ -141,22 +144,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const isEmail = identifier.includes('@');
 
         if (!isEmail) {
-            const q = query(collection(db, 'profiles'), where('username', '==', identifier));
-            const querySnapshot = await getDocs(q);
+            const profiles = getLocalProfiles();
+            const foundUser = Object.values(profiles).find((p: any) => p.username === identifier);
             
-            if (querySnapshot.empty) {
+            if (!foundUser) {
                 throw new Error('Credenciais inválidas.');
             }
             
-            // We need the email associated with this username.
-            // Since we don't store email in profiles by default, we should ensure we do or use a lookup.
-            // Wait, the Supabase code fetched email from profiles. Let's assume email is stored in profiles or we need to add it.
-            // Actually, we should store email in profiles to make this work.
-            const profileData = querySnapshot.docs[0].data();
-            if (!profileData.email) {
+            if (!foundUser.email) {
                  throw new Error('Email não encontrado para este usuário.');
             }
-            emailToLogin = profileData.email;
+            emailToLogin = foundUser.email;
         }
 
         try {
@@ -181,28 +179,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const result = await signInWithPopup(auth, provider);
             const firebaseUser = result.user;
             
-            // Check if profile exists
-            const docRef = doc(db, 'profiles', firebaseUser.uid);
-            const docSnap = await getDoc(docRef);
+            const profiles = getLocalProfiles();
             
-            if (!docSnap.exists()) {
-                // Register new user
+            if (!profiles[firebaseUser.uid]) {
+                const isAdminEmail = firebaseUser.email ? ADMIN_EMAILS.includes(firebaseUser.email) : false;
                 const defaultProfile = {
                     username: firebaseUser.email?.split('@')[0] || 'user',
                     name: firebaseUser.displayName || 'Usuário',
                     email: firebaseUser.email || '',
                     avatar_url: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${(firebaseUser.displayName || 'User').replace(' ', '+')}&background=0891b2&color=fff`,
-                    role: 'client',
-                    is_premium: false,
-                    has_billing: false,
-                    pdv_access_status: 'none',
+                    role: isAdminEmail ? 'admin' : 'client',
+                    is_premium: isAdminEmail,
+                    has_billing: isAdminEmail,
+                    pdv_access_status: isAdminEmail ? 'authorized' : 'none',
                     status: 'active'
                 };
                 
-                await setDoc(docRef, defaultProfile);
+                profiles[firebaseUser.uid] = defaultProfile;
+                saveLocalProfiles(profiles);
             }
-            
-            await updateUserState(firebaseUser);
         } catch (error: any) {
             console.error("Google login error:", error);
             if (error.code === 'auth/popup-closed-by-user') {
@@ -217,10 +212,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const register = async (name: string, email: string, username: string, pass: string): Promise<void> => {
         try {
-            // Check if username already exists
-            const q = query(collection(db, 'profiles'), where('username', '==', username));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
+            const profiles = getLocalProfiles();
+            const usernameExists = Object.values(profiles).some((p: any) => p.username === username);
+            
+            if (usernameExists) {
                 throw new Error('Nome de usuário já está em uso.');
             }
 
@@ -229,20 +224,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             const avatar_url = `https://ui-avatars.com/api/?name=${name.replace(' ', '+')}&background=0891b2&color=fff`;
 
-            await setDoc(doc(db, 'profiles', newUser.uid), {
+            const isAdminEmail = email ? ADMIN_EMAILS.includes(email) : false;
+            profiles[newUser.uid] = {
                 username,
                 name,
-                email, // Store email for login lookup
+                email,
                 avatar_url,
-                role: 'client',
-                is_premium: false,
-                has_billing: false,
-                pdv_access_status: 'none',
+                role: isAdminEmail ? 'admin' : 'client',
+                is_premium: isAdminEmail,
+                has_billing: isAdminEmail,
+                pdv_access_status: isAdminEmail ? 'authorized' : 'none',
                 status: 'active'
-            });
-            
-            // Force refetch to update state
-            await updateUserState(newUser);
+            };
+            saveLocalProfiles(profiles);
         } catch (error: any) {
             if (error.code === 'auth/email-already-in-use') {
                 throw new Error('Este email já está em uso.');
@@ -266,34 +260,89 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error signing out:", error);
         });
     };
+
+    const resetPassword = async (email: string): Promise<void> => {
+        try {
+            await sendPasswordResetEmail(auth, email);
+        } catch (error: any) {
+            if (error.code === 'auth/user-not-found') {
+                throw new Error('Usuário não encontrado.');
+            }
+            if (error.code === 'auth/invalid-email') {
+                throw new Error('Email inválido.');
+            }
+            throw new Error(error.message);
+        }
+    };
     
     const adminGetAllUsers = async (): Promise<User[]> => {
-        const q = query(collection(db, 'profiles'), where('status', '==', 'active'));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            email: doc.data().email || '',
-            name: doc.data().name || '',
-            username: doc.data().username || '',
-            role: doc.data().role || 'client',
-            isPremium: doc.data().is_premium || false,
-            hasBilling: doc.data().has_billing || false,
-            avatarUrl: doc.data().avatar_url || '',
-            pdvAccessStatus: doc.data().pdv_access_status || 'none',
-            status: doc.data().status || 'active',
-        }));
+        const profiles = getLocalProfiles();
+        return Object.entries(profiles)
+            .filter(([_, data]: [string, any]) => data.status === 'active')
+            .map(([id, data]: [string, any]) => ({
+                id,
+                email: data.email || '',
+                name: data.name || '',
+                username: data.username || '',
+                role: data.role || 'client',
+                isPremium: data.is_premium || false,
+                hasBilling: data.has_billing || false,
+                avatarUrl: data.avatar_url || '',
+                pdvAccessStatus: data.pdv_access_status || 'none',
+                status: data.status || 'active',
+            }));
     }
 
     const adminUpdateUserRole = async (userId: string, role: UserRole): Promise<void> => {
-        await updateDoc(doc(db, 'profiles', userId), { role });
+        const profiles = getLocalProfiles();
+        if (profiles[userId]) {
+            profiles[userId].role = role;
+            saveLocalProfiles(profiles);
+        }
     }
     
-    const adminCreateUser = async (details: { name: string; email: string; username: string; pass: string }): Promise<void> => {
-        console.warn("adminCreateUser called on the frontend. In production, this should be a trusted server-side call.");
-        // Note: Firebase Auth doesn't allow creating users without signing them in on the client SDK easily.
-        // We will just call register, which will sign the admin out and sign the new user in.
-        // In a real app, use Firebase Admin SDK in a Cloud Function.
-        await register(details.name, details.email, details.username, details.pass);
+    const adminCreateUser = async (details: { name: string; email: string; username: string; pass: string; role?: UserRole; pdvAccessStatus?: PdvAccessStatus }): Promise<void> => {
+        try {
+            const profiles = getLocalProfiles();
+            const usernameExists = Object.values(profiles).some((p: any) => p.username === details.username);
+            
+            if (usernameExists) {
+                throw new Error('Nome de usuário já está em uso.');
+            }
+
+            const userCredential = await createUserWithEmailAndPassword(auth, details.email, details.pass);
+            const newUser = userCredential.user;
+
+            const avatar_url = `https://ui-avatars.com/api/?name=${details.name.replace(' ', '+')}&background=0891b2&color=fff`;
+
+            const isAdminEmail = details.email ? ADMIN_EMAILS.includes(details.email) : false;
+            const role = details.role || (isAdminEmail ? 'admin' : 'client');
+            const pdvAccessStatus = details.pdvAccessStatus || (isAdminEmail ? 'authorized' : 'none');
+
+            profiles[newUser.uid] = {
+                username: details.username,
+                name: details.name,
+                email: details.email,
+                avatar_url,
+                role,
+                is_premium: isAdminEmail,
+                has_billing: isAdminEmail,
+                pdv_access_status: pdvAccessStatus,
+                status: 'active'
+            };
+            saveLocalProfiles(profiles);
+        } catch (error: any) {
+            if (error.code === 'auth/email-already-in-use') {
+                throw new Error('Este email já está em uso.');
+            }
+            if (error.code === 'auth/weak-password') {
+                throw new Error('A senha deve ter pelo menos 6 caracteres.');
+            }
+            if (error.code === 'auth/invalid-email') {
+                throw new Error('O email fornecido é inválido.');
+            }
+            throw new Error(error.message);
+        }
     };
 
     const adminUpdateUser = async (userId: string, updates: Partial<User>): Promise<Partial<User>> => {
@@ -311,45 +360,76 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
         }
     
-        const profileUpdates: { [key: string]: any } = {};
+        const profiles = getLocalProfiles();
+        if (!profiles[userId]) return {};
+
         const appliedUpdates: Partial<User> = {};
     
-        if (updates.avatarUrl && updates.avatarUrl.startsWith('data:image')) {
-            // Salvar a imagem em base64 diretamente no Firestore para evitar problemas com o Storage
-            profileUpdates.avatar_url = updates.avatarUrl;
+        if (updates.avatarUrl) {
+            profiles[userId].avatar_url = updates.avatarUrl;
             appliedUpdates.avatarUrl = updates.avatarUrl;
-        } else if (updates.avatarUrl) {
-            profileUpdates.avatar_url = updates.avatarUrl;
         }
     
+        if (updates.photoURL) {
+            profiles[userId].photo_url = updates.photoURL;
+            appliedUpdates.photoURL = updates.photoURL;
+        }
+
         if (updates.name) {
-            profileUpdates.name = updates.name;
+            profiles[userId].name = updates.name;
             appliedUpdates.name = updates.name;
         }
         if (updates.username) {
-            profileUpdates.username = updates.username;
+            profiles[userId].username = updates.username;
             appliedUpdates.username = updates.username;
         }
 
-        if (Object.keys(profileUpdates).length > 0) {
-            await updateDoc(doc(db, 'profiles', userId), profileUpdates);
-        }
-
+        saveLocalProfiles(profiles);
         return appliedUpdates;
     };
 
     const adminDeleteUser = async (userId: string): Promise<void> => {
-        await updateDoc(doc(db, 'profiles', userId), { status: 'inactive' });
+        const profiles = getLocalProfiles();
+        if (profiles[userId]) {
+            profiles[userId].status = 'inactive';
+            saveLocalProfiles(profiles);
+        }
     };
 
     const isAuthenticated = !!user;
 
     const authorizePdvAccess = async (userId: string): Promise<void> => {
-        await updateDoc(doc(db, 'profiles', userId), { pdv_access_status: 'authorized' });
+        const profiles = getLocalProfiles();
+        if (profiles[userId]) {
+            profiles[userId].pdv_access_status = 'authorized';
+            saveLocalProfiles(profiles);
+        }
     };
 
     const revokePdvAccess = async (userId: string): Promise<void> => {
-        await updateDoc(doc(db, 'profiles', userId), { pdv_access_status: 'revoked' });
+        const profiles = getLocalProfiles();
+        if (profiles[userId]) {
+            profiles[userId].pdv_access_status = 'revoked';
+            saveLocalProfiles(profiles);
+        }
+    };
+
+    const uploadFile = async (file: File, path: string): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const MAX_SIZE = 2 * 1024 * 1024;
+            if (file.size > MAX_SIZE) {
+                return reject(new Error('O arquivo é muito grande. O limite é de 2MB.'));
+            }
+
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                resolve(reader.result as string);
+            };
+            reader.onerror = () => {
+                reject(new Error('Falha ao ler o arquivo.'));
+            };
+            reader.readAsDataURL(file);
+        });
     };
 
     const value = {
@@ -358,6 +438,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         loginWithGoogle,
         register,
         logout,
+        resetPassword,
         isAuthenticated,
         adminGetAllUsers,
         adminUpdateUserRole,
@@ -366,7 +447,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         adminDeleteUser,
         authorizePdvAccess,
         revokePdvAccess,
-        refetchUser
+        refetchUser,
+        uploadFile
     };
 
     return (

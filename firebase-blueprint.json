@@ -9,6 +9,7 @@
         "username": { "type": "string" },
         "name": { "type": "string" },
         "avatar_url": { "type": "string" },
+        "photo_url": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "client", "moderator"] },
         "is_premium": { "type": "boolean" },
         "has_billing": { "type": "boolean" },
@@ -191,6 +192,7 @@
         "address": { "type": "object" },
         "dob": { "type": "string" },
         "avatar_url": { "type": "string" },
+        "photo_url": { "type": "string" },
         "status": { "type": "string" },
         "signup_date": { "type": "string", "format": "date-time" }
       },

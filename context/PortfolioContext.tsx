@@ -1,8 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { PortfolioProduct, PortfolioImage } from '../types';
-import { db, storage } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, writeBatch } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db } from '../lib/firebase';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, writeBatch } from '../lib/localDb';
 import { useAuth } from './AuthContext';
 
 const BUCKET_NAME = 'portfolio';

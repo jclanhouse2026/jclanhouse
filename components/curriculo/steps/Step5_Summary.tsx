@@ -2,6 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { useResume } from '../../../context/ResumeContext';
 import LightBulbIcon from '../../icons/LightBulbIcon';
 import XCircleIcon from '../../icons/XCircleIcon';
+import SparklesIcon from '../../icons/SparklesIcon';
+import CheckCircleIcon from '../../icons/CheckCircleIcon';
+import { generateResumeSummary, correctText } from '../../../services/geminiService';
 
 const ObjectivesModal: React.FC<{
     onClose: () => void;
@@ -65,10 +68,44 @@ const ObjectivesModal: React.FC<{
 const Step5_Summary: React.FC = () => {
     const { resumeData, updateSummary } = useResume();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isCorrecting, setIsCorrecting] = useState(false);
 
     const handleSelectObjective = (text: string) => {
         updateSummary(text);
         setIsModalOpen(false);
+    };
+
+    const handleCorrectText = async () => {
+        if (!resumeData.summary || isCorrecting) return;
+        setIsCorrecting(true);
+        try {
+            const corrected = await correctText(resumeData.summary);
+            if (corrected) {
+                updateSummary(corrected);
+            }
+        } catch (error) {
+            console.error("Erro ao corrigir texto:", error);
+        } finally {
+            setIsCorrecting(false);
+        }
+    };
+
+    const generateWithAI = async (isFirstJob: boolean = false) => {
+        if (isGenerating) return;
+        setIsGenerating(true);
+
+        try {
+            const summary = await generateResumeSummary(resumeData, isFirstJob);
+            if (summary) {
+                updateSummary(summary);
+            }
+        } catch (error) {
+            console.error("Erro ao gerar resumo com IA:", error);
+            alert("Ocorreu um erro ao gerar o resumo com IA. Verifique sua conexão ou tente novamente mais tarde.");
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     return (
@@ -78,14 +115,46 @@ const Step5_Summary: React.FC = () => {
                 <p className="text-slate-400 mt-1">Este é o seu "cartão de visita". Destaque suas principais qualidades e objetivos.</p>
             </div>
             
-            <button
-                type="button"
-                onClick={() => setIsModalOpen(true)}
-                className="mx-auto flex items-center gap-2 text-sm font-semibold bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
-            >
-                <LightBulbIcon className="w-5 h-5" />
-                Gerar Sugestão de Resumo
-            </button>
+            <div className="flex flex-wrap justify-center gap-3">
+                <button
+                    type="button"
+                    disabled={isGenerating}
+                    onClick={() => generateWithAI(false)}
+                    className="flex items-center gap-2 text-sm font-semibold bg-cyan-600 text-white px-4 py-2 rounded-md hover:bg-cyan-700 transition-colors disabled:opacity-50"
+                >
+                    <SparklesIcon className="w-5 h-5" />
+                    {isGenerating ? 'Gerando...' : 'Gerar com IA'}
+                </button>
+
+                <button
+                    type="button"
+                    disabled={isGenerating}
+                    onClick={() => generateWithAI(true)}
+                    className="flex items-center gap-2 text-sm font-semibold bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                >
+                    <SparklesIcon className="w-5 h-5" />
+                    {isGenerating ? 'Gerando...' : 'IA: Primeiro Emprego'}
+                </button>
+
+                <button
+                    type="button"
+                    disabled={isGenerating || isCorrecting}
+                    onClick={handleCorrectText}
+                    className="flex items-center gap-2 text-sm font-semibold bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                >
+                    <CheckCircleIcon className="w-5 h-5" />
+                    {isCorrecting ? 'Corrigindo...' : 'Corrigir Texto'}
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center gap-2 text-sm font-semibold bg-slate-700 text-white px-4 py-2 rounded-md hover:bg-slate-600 transition-colors"
+                >
+                    <LightBulbIcon className="w-5 h-5" />
+                    Sugestões Prontas
+                </button>
+            </div>
 
             <div>
                 <textarea

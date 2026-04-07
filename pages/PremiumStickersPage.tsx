@@ -24,16 +24,18 @@ const PremiumStickersPage: React.FC = () => {
         if (!pricingLoading && premiumPricing.materials.length > 0) {
             setSelectedMaterial(premiumPricing.materials[0]);
         }
-    }, [pricingLoading, premiumPricing.materials]);
+        if (!pricingLoading && premiumPricing.sizes.length > 0) {
+            setSelectedSize(premiumPricing.sizes[0].size);
+        }
+    }, [pricingLoading, premiumPricing.materials, premiumPricing.sizes]);
 
     const { totalPrice, pricePerUnit } = useMemo(() => {
         if (!selectedMaterial) return { totalPrice: 0, pricePerUnit: 0 };
-        const basePricePerSqCm = 0.05; // Base cost per square cm for paper
-        const area = selectedFormat === 'redondo'
-            ? Math.PI * (selectedSize / 2) ** 2
-            : selectedSize ** 2;
+        
+        const sizeConfig = premiumPricing.sizes.find((s: any) => s.size === selectedSize);
+        const basePrice = sizeConfig ? sizeConfig.price : 0.50;
 
-        let unitPrice = (area * basePricePerSqCm) * (selectedMaterial.priceModifier || 1);
+        let unitPrice = basePrice * (selectedMaterial.priceModifier || 1);
         if (hasLamination) {
             unitPrice += premiumPricing?.lamination?.pricePerUnit || 0;
         }
@@ -50,7 +52,7 @@ const PremiumStickersPage: React.FC = () => {
 
         return { totalPrice: finalTotal, pricePerUnit: finalUnitPrice };
 
-    }, [selectedSize, selectedFormat, selectedMaterial, hasLamination, quantity, premiumPricing]);
+    }, [selectedSize, selectedMaterial, hasLamination, quantity, premiumPricing]);
     
     const handleQuantityChange = (amount: number) => {
         setQuantity(prev => Math.max(10, prev + amount));
@@ -131,9 +133,9 @@ const PremiumStickersPage: React.FC = () => {
 
                             <OptionSection number={1} title="TAMANHO">
                                 <div className="grid grid-cols-5 gap-3">
-                                    {premiumPricing?.sizes?.map((size: number) => (
-                                        <button key={size} onClick={() => setSelectedSize(size)} className={`py-3 rounded-lg text-center font-bold transition-colors ${selectedSize === size ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/90 text-slate-800 hover:bg-white'}`}>
-                                            {size} <span className="font-normal text-xs">cm</span>
+                                    {premiumPricing?.sizes?.map((s: any) => (
+                                        <button key={s.id} onClick={() => setSelectedSize(s.size)} className={`py-3 rounded-lg text-center font-bold transition-colors ${selectedSize === s.size ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/90 text-slate-800 hover:bg-white'}`}>
+                                            {s.size} <span className="font-normal text-xs">cm</span>
                                         </button>
                                     ))}
                                 </div>

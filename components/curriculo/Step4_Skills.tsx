@@ -1,5 +1,6 @@
 import React from 'react';
 import { useResume } from '../../context/ResumeContext';
+import { SafeImage } from '../SafeImage';
 
 const Step4_Details: React.FC = () => {
     const { resumeData, updateProfile, updateCnh } = useResume();
@@ -69,7 +70,7 @@ const Step4_Details: React.FC = () => {
                  <div className="flex flex-col items-center">
                     <label className="text-sm font-semibold text-slate-300 block mb-2">Sua Foto de Perfil</label>
                     <div className="relative">
-                        <img src={resumeData.profile.photo || `https://ui-avatars.com/api/?name=${resumeData.profile.name || '?'}&background=0d9488&color=fff&size=128`} alt="Foto de Perfil" className="w-28 h-28 rounded-full object-cover border-4 border-slate-600" />
+                        <SafeImage src={resumeData.profile.photo} alt="Foto de Perfil" className="w-28 h-28 rounded-full object-cover border-4 border-slate-600" fallbackType="avatar" />
                         <label htmlFor="photo-upload" className="absolute bottom-0 right-0 bg-slate-600 p-2 rounded-full cursor-pointer hover:bg-slate-500">
                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 6.732z" /></svg>
                            <input id="photo-upload" type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} />

@@ -5,6 +5,7 @@ import Footer from '../components/Footer';
 import Stepper from '../components/curriculo/Stepper';
 import { useResume } from '../context/ResumeContext';
 import { useAuth } from '../context/AuthContext';
+import { useCustomers } from '../context/CustomerContext';
 import DocumentTextIcon from '../components/icons/DocumentTextIcon';
 
 // Import step components
@@ -27,7 +28,8 @@ const CurriculoPage: React.FC = () => {
     const [step, setStep] = useState(1);
     const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
     const totalSteps = 10;
-    const { loadResumeIntoBuilder, getRequestById } = useResume();
+    const { loadResumeIntoBuilder, getRequestById, resumeData, importProfileData } = useResume();
+    const { customersForCurrentUser } = useCustomers();
 
     useEffect(() => {
         if (!user) return; // Don't run this effect if user is not logged in
@@ -40,8 +42,17 @@ const CurriculoPage: React.FC = () => {
                  // Start at the final step if editing
                 setStep(10);
             }
+        } else {
+            // If it's a new resume and user is logged in, try to import profile data
+            if (customersForCurrentUser.length > 0) {
+                const customer = customersForCurrentUser[0];
+                // Only pre-fill if the name is still the default one or empty
+                if (resumeData.profile.name === 'Seu Nome Completo' || resumeData.profile.name === '') {
+                    importProfileData(customer);
+                }
+            }
         }
-    }, [location.search, getRequestById, loadResumeIntoBuilder, user]);
+    }, [location.search, getRequestById, loadResumeIntoBuilder, user, customersForCurrentUser, importProfileData, resumeData.profile.name]);
 
 
     const nextStep = () => {
@@ -68,11 +79,11 @@ const CurriculoPage: React.FC = () => {
                 case 2: return <Step2_BasicInfo />;
                 case 3: return <Step3_Location />;
                 case 4: return <Step4_Details />;
-                case 5: return <Step5_Summary />;
-                case 6: return <Step6_Experience />;
-                case 7: return <Step7_Education />;
-                case 8: return <Step8_Skills />;
-                case 9: return <Step9_Languages />;
+                case 5: return <Step6_Experience />;
+                case 6: return <Step7_Education />;
+                case 7: return <Step8_Skills />;
+                case 8: return <Step9_Languages />;
+                case 9: return <Step5_Summary />;
                 case 10: return <Step10_Finalize />;
                 default: return <Step1_Intro onNext={nextStep} />;
             }

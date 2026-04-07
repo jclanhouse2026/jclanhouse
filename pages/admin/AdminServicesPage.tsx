@@ -53,67 +53,56 @@ const AdminServicesPage: React.FC = () => {
     const { pricing, updatePricing, loading } = useServicePricing();
     const [localPricing, setLocalPricing] = useState(pricing);
     const [activeTab, setActiveTab] = useState<ServiceTab>('caderneta');
-    const [isSaving, setIsSaving] = useState(false);
-    const [showSuccess, setShowSuccess] = useState(false);
 
     useEffect(() => {
         // Quando os dados do contexto são carregados, atualiza o estado local.
         setLocalPricing(pricing);
     }, [pricing]);
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        try {
-            await updatePricing(localPricing);
-            setShowSuccess(true);
-            setTimeout(() => setShowSuccess(false), 2000);
-        } catch (error) {
-            console.error(error);
-            alert("Falha ao salvar as alterações.");
-        } finally {
-            setIsSaving(false);
-        }
-    };
     
     // --- Funções de Manipulação do Estado Local ---
     const handleItemChange = (tab: ServiceTab, section: string, index: number, field: string, value: string | number) => {
-        setLocalPricing((prev: any) => {
-            const newTabState = { ...prev[tab] };
-            const newSection = [...newTabState[section]];
-            newSection[index] = { ...newSection[index], [field]: value };
-            return { ...prev, [tab]: { ...newTabState, [section]: newSection } };
-        });
+        const newTabState = { ...localPricing[tab] };
+        const newSection = [...newTabState[section]];
+        newSection[index] = { ...newSection[index], [field]: value };
+        const newPricing = { ...localPricing, [tab]: { ...newTabState, [section]: newSection } };
+        
+        setLocalPricing(newPricing);
+        updatePricing(newPricing);
     };
     
     const handleSingleItemChange = (tab: ServiceTab, section: string, field: string, value: string | number) => {
-        setLocalPricing((prev: any) => {
-             const newTabState = { ...prev[tab] };
-             newTabState[section] = { ...newTabState[section], [field]: value };
-             return { ...prev, [tab]: newTabState };
-        });
+        const newTabState = { ...localPricing[tab] };
+        newTabState[section] = { ...newTabState[section], [field]: value };
+        const newPricing = { ...localPricing, [tab]: newTabState };
+        
+        setLocalPricing(newPricing);
+        updatePricing(newPricing);
     };
     
     const handleArrayChange = (tab: ServiceTab, section: string, value: string) => {
-         setLocalPricing((prev: any) => {
-            const newArray = value.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
-            return { ...prev, [tab]: { ...prev[tab], [section]: newArray } };
-        });
+        const newArray = value.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
+        const newPricing = { ...localPricing, [tab]: { ...localPricing[tab], [section]: newArray } };
+        
+        setLocalPricing(newPricing);
+        updatePricing(newPricing);
     };
 
     const addItem = (tab: ServiceTab, section: string, newItem: any) => {
-        setLocalPricing((prev: any) => {
-            const newTabState = { ...prev[tab] };
-            const newSection = [...newTabState[section], newItem];
-            return { ...prev, [tab]: { ...newTabState, [section]: newSection } };
-        });
+        const newTabState = { ...localPricing[tab] };
+        const newSection = [...newTabState[section], newItem];
+        const newPricing = { ...localPricing, [tab]: { ...newTabState, [section]: newSection } };
+        
+        setLocalPricing(newPricing);
+        updatePricing(newPricing);
     };
 
     const deleteItem = (tab: ServiceTab, section: string, index: number) => {
-        setLocalPricing((prev: any) => {
-            const newTabState = { ...prev[tab] };
-            const newSection = newTabState[section].filter((_: any, i: number) => i !== index);
-            return { ...prev, [tab]: { ...newTabState, [section]: newSection } };
-        });
+        const newTabState = { ...localPricing[tab] };
+        const newSection = newTabState[section].filter((_: any, i: number) => i !== index);
+        const newPricing = { ...localPricing, [tab]: { ...newTabState, [section]: newSection } };
+        
+        setLocalPricing(newPricing);
+        updatePricing(newPricing);
     };
     
     // -- Fim --
@@ -156,10 +145,11 @@ const AdminServicesPage: React.FC = () => {
                 </>;
              case 'adesivos_escolares':
                  return <>
-                    <ServiceSection title="Pacotes" onAdd={() => addItem('adesivos_escolares', 'packages', {id: `new_${Date.now()}`, name: 'Novo Kit', description: 'Descrição...', price: 0})}>
+                    <ServiceSection title="Pacotes" onAdd={() => addItem('adesivos_escolares', 'packages', {id: `new_${Date.now()}`, name: 'Novo Kit', description: 'Descrição...', size: '0x0cm', price: 0})}>
                         {adesivos_escolares.packages.map((pkg: any, index: number) => (
-                            <EditableRow key={pkg.id} onDelete={() => deleteItem('adesivos_escolares', 'packages', index)} className="md:grid-cols-3">
+                            <EditableRow key={pkg.id} onDelete={() => deleteItem('adesivos_escolares', 'packages', index)} className="md:grid-cols-4">
                                 <InputField label="Nome do Pacote" value={pkg.name} onChange={(e) => handleItemChange('adesivos_escolares','packages', index, 'name', e.target.value)} />
+                                <InputField label="Tamanho" value={pkg.size || ''} onChange={(e) => handleItemChange('adesivos_escolares', 'packages', index, 'size', e.target.value)} />
                                 <InputField label="Descrição" value={pkg.description} onChange={(e) => handleItemChange('adesivos_escolares', 'packages', index, 'description', e.target.value)} />
                                 <InputField label="Preço (R$)" type="number" value={pkg.price} onChange={(e) => handleItemChange('adesivos_escolares', 'packages', index, 'price', parseFloat(e.target.value))} />
                             </EditableRow>
@@ -175,8 +165,13 @@ const AdminServicesPage: React.FC = () => {
                 </>;
             case 'adesivos_premium':
                 return <>
-                    <ServiceSection title="Tamanhos Disponíveis (cm)" description="Separe os valores por vírgula. Ex: 2, 3, 4, 5">
-                        <InputField label="Tamanhos" value={adesivos_premium.sizes.join(', ')} onChange={e => handleArrayChange('adesivos_premium', 'sizes', e.target.value)} />
+                    <ServiceSection title="Tamanhos e Preços Base" onAdd={() => addItem('adesivos_premium', 'sizes', {id: `new_${Date.now()}`, size: 0, price: 0})}>
+                        {adesivos_premium.sizes.map((s: any, index: number) => (
+                            <EditableRow key={s.id} onDelete={() => deleteItem('adesivos_premium', 'sizes', index)} className="md:grid-cols-2">
+                                <InputField label="Tamanho (cm)" type="number" value={s.size} onChange={e => handleItemChange('adesivos_premium', 'sizes', index, 'size', parseFloat(e.target.value))} />
+                                <InputField label="Preço Unitário Base (R$)" type="number" value={s.price} onChange={e => handleItemChange('adesivos_premium', 'sizes', index, 'price', parseFloat(e.target.value))} />
+                            </EditableRow>
+                        ))}
                     </ServiceSection>
                     <ServiceSection title="Materiais e Acabamento" onAdd={() => addItem('adesivos_premium', 'materials', {id: `new_${Date.now()}`, name: 'Novo Material', priceModifier: 1, priceText: '+R$ 0.00 / UN'})}>
                         {adesivos_premium.materials.map((mat: any, index: number) => (
@@ -198,8 +193,13 @@ const AdminServicesPage: React.FC = () => {
             // FIX: Changed case from 'cartoes' to 'cartoes_visita' to match the updated ServiceTab type.
             case 'cartoes_visita':
                 return <>
-                    <ServiceSection title="Quantidades Disponíveis" description="Separe os valores por vírgula. Ex: 100, 200, 500">
-                        <InputField label="Quantidades" value={cartoes_visita.quantities.join(', ')} onChange={e => handleArrayChange('cartoes_visita', 'quantities', e.target.value)} />
+                    <ServiceSection title="Quantidades e Multiplicadores" onAdd={() => addItem('cartoes_visita', 'quantities', {quantity: 0, multiplier: 1.0})}>
+                        {cartoes_visita.quantities.map((q: any, index: number) => (
+                             <EditableRow key={index} onDelete={() => deleteItem('cartoes_visita', 'quantities', index)} className="md:grid-cols-2">
+                                <InputField label="Quantidade" type="number" value={q.quantity} onChange={e => handleItemChange('cartoes_visita', 'quantities', index, 'quantity', parseInt(e.target.value))} />
+                                <InputField label="Multiplicador de Preço" type="number" value={q.multiplier} onChange={e => handleItemChange('cartoes_visita', 'quantities', index, 'multiplier', parseFloat(e.target.value))} />
+                            </EditableRow>
+                        ))}
                     </ServiceSection>
                     <ServiceSection title="Tipos de Papel" onAdd={() => addItem('cartoes_visita', 'papers', {id: `new_${Date.now()}`, name: 'Novo Papel', description: 'Descrição', basePrice: 0})}>
                         {cartoes_visita.papers.map((paper: any, index: number) => (
@@ -221,18 +221,23 @@ const AdminServicesPage: React.FC = () => {
                 </>;
             case 'panfletos':
                 const handlePriceChange = (formatId: string, qty: number, price: number) => {
-                    setLocalPricing((prev: any) => ({
-                        ...prev,
+                    const newPricing = {
+                        ...localPricing,
                         panfletos: {
-                            ...prev.panfletos,
+                            ...localPricing.panfletos,
                             prices: {
-                                ...prev.panfletos.prices,
-                                [formatId]: { ...prev.panfletos.prices[formatId], [qty]: price }
+                                ...localPricing.panfletos.prices,
+                                [formatId]: { ...localPricing.panfletos.prices[formatId], [qty]: price }
                             }
                         }
-                    }))
+                    };
+                    setLocalPricing(newPricing);
+                    updatePricing(newPricing);
                 };
                 return <>
+                    <ServiceSection title="Quantidades Disponíveis" description="Separe os valores por vírgula. Ex: 500, 1000, 2500">
+                        <InputField label="Quantidades" value={panfletos.quantities.join(', ')} onChange={e => handleArrayChange('panfletos', 'quantities', e.target.value)} />
+                    </ServiceSection>
                     <ServiceSection title="Formatos" onAdd={() => addItem('panfletos', 'formats', {id:`new_${Date.now()}`, name: 'Novo Formato', description: 'Descrição'})}>
                         {panfletos.formats.map((format: any, index: number) => (
                              <EditableRow key={format.id} onDelete={() => deleteItem('panfletos', 'formats', index)} className="md:grid-cols-2">
@@ -279,7 +284,11 @@ const AdminServicesPage: React.FC = () => {
                                 label="Preço Base (R$)"
                                 type="number"
                                 value={impressao.basePrice}
-                                onChange={(e) => setLocalPricing(prev => ({ ...prev, impressao: { ...prev.impressao, basePrice: parseFloat(e.target.value) } }))}
+                                onChange={(e) => {
+                                    const newPricing = { ...localPricing, impressao: { ...localPricing.impressao, basePrice: parseFloat(e.target.value) } };
+                                    setLocalPricing(newPricing);
+                                    updatePricing(newPricing);
+                                }}
                             />
                         </div>
                     </ServiceSection>
@@ -287,15 +296,35 @@ const AdminServicesPage: React.FC = () => {
                         <div className="p-3 bg-slate-700/50 rounded-lg">
                             <h4 className="font-semibold mb-2">Laser Pro</h4>
                             <div className="grid grid-cols-2 gap-4">
-                                <InputField label="Base (P&B)" type="number" value={impressao.techModifiers.laser.base} onChange={e => setLocalPricing(prev => ({...prev, impressao: {...prev.impressao, techModifiers: {...prev.impressao.techModifiers, laser: {...prev.impressao.techModifiers.laser, base: parseFloat(e.target.value) }}} }))} />
-                                <InputField label="Colorido" type="number" value={impressao.techModifiers.laser.color} onChange={e => setLocalPricing(prev => ({...prev, impressao: {...prev.impressao, techModifiers: {...prev.impressao.techModifiers, laser: {...prev.impressao.techModifiers.laser, color: parseFloat(e.target.value) }}} }))} />
+                                <InputField label="Base (P&B)" type="number" value={impressao.techModifiers.laser.base} onChange={e => {
+                                    const val = parseFloat(e.target.value);
+                                    const newPricing = {...localPricing, impressao: {...localPricing.impressao, techModifiers: {...localPricing.impressao.techModifiers, laser: {...localPricing.impressao.techModifiers.laser, base: val }}} };
+                                    setLocalPricing(newPricing);
+                                    updatePricing(newPricing);
+                                }} />
+                                <InputField label="Colorido" type="number" value={impressao.techModifiers.laser.color} onChange={e => {
+                                    const val = parseFloat(e.target.value);
+                                    const newPricing = {...localPricing, impressao: {...localPricing.impressao, techModifiers: {...localPricing.impressao.techModifiers, laser: {...localPricing.impressao.techModifiers.laser, color: val }}} };
+                                    setLocalPricing(newPricing);
+                                    updatePricing(newPricing);
+                                }} />
                             </div>
                         </div>
                          <div className="p-3 bg-slate-700/50 rounded-lg">
                             <h4 className="font-semibold mb-2">Jato de Tinta</h4>
                             <div className="grid grid-cols-2 gap-4">
-                                <InputField label="Base (P&B)" type="number" value={impressao.techModifiers.inkjet.base} onChange={e => setLocalPricing(prev => ({...prev, impressao: {...prev.impressao, techModifiers: {...prev.impressao.techModifiers, inkjet: {...prev.impressao.techModifiers.inkjet, base: parseFloat(e.target.value) }}} }))} />
-                                <InputField label="Colorido" type="number" value={impressao.techModifiers.inkjet.color} onChange={e => setLocalPricing(prev => ({...prev, impressao: {...prev.impressao, techModifiers: {...prev.impressao.techModifiers, inkjet: {...prev.impressao.techModifiers.inkjet, color: parseFloat(e.target.value) }}} }))} />
+                                <InputField label="Base (P&B)" type="number" value={impressao.techModifiers.inkjet.base} onChange={e => {
+                                    const val = parseFloat(e.target.value);
+                                    const newPricing = {...localPricing, impressao: {...localPricing.impressao, techModifiers: {...localPricing.impressao.techModifiers, inkjet: {...localPricing.impressao.techModifiers.inkjet, base: val }}} };
+                                    setLocalPricing(newPricing);
+                                    updatePricing(newPricing);
+                                }} />
+                                <InputField label="Colorido" type="number" value={impressao.techModifiers.inkjet.color} onChange={e => {
+                                    const val = parseFloat(e.target.value);
+                                    const newPricing = {...localPricing, impressao: {...localPricing.impressao, techModifiers: {...localPricing.impressao.techModifiers, inkjet: {...localPricing.impressao.techModifiers.inkjet, color: val }}} };
+                                    setLocalPricing(newPricing);
+                                    updatePricing(newPricing);
+                                }} />
                             </div>
                         </div>
                     </ServiceSection>
@@ -328,14 +357,6 @@ const AdminServicesPage: React.FC = () => {
                     <BriefcaseIcon className="w-6 h-6" />
                     Gerenciamento de Preços de Serviços
                 </h1>
-                <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="bg-cyan-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-600 transition-colors relative disabled:bg-slate-600"
-                >
-                    {isSaving ? 'Salvando...' : 'Salvar Alterações'}
-                    {showSuccess && <span className="absolute -top-2 -right-2 text-xs bg-emerald-500 text-white rounded-full px-2 py-0.5 animate-pulse">Salvo!</span>}
-                </button>
             </div>
 
             <div className="bg-slate-800 rounded-xl shadow-lg border border-slate-700">

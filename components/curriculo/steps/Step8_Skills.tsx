@@ -6,6 +6,7 @@ import TrashIcon from '../../icons/TrashIcon';
 import CogIcon from '../../icons/CogIcon';
 import GraduationCapIcon from '../../icons/GraduationCapIcon';
 import CheckIcon from '../../icons/CheckIcon';
+import AutocompleteInput from '../AutocompleteInput';
 
 const Toggle: React.FC<{ checked: boolean; onChange: (checked: boolean) => void; }> = ({ checked, onChange }) => (
     <button
@@ -44,7 +45,7 @@ const SkillButton: React.FC<{ label: string; level: string; onLevelChange: (leve
 };
 
 const Step8_Skills: React.FC = () => {
-    const { resumeData: { informatics, courses }, updateInformatics, addCourse, updateCourse, removeCourse } = useResume();
+    const { resumeData: { informatics, courses, profile }, updateInformatics, addCourse, updateCourse, removeCourse } = useResume();
 
     return (
         <div className="space-y-8">
@@ -77,7 +78,17 @@ const Step8_Skills: React.FC = () => {
                             </select>
                         </div>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <InputField label="Instituição do Curso" value={informatics.institution} onChange={(e) => updateInformatics('institution', e.target.value)} />
+                            <div>
+                                <label className="text-xs font-semibold text-slate-400 block mb-1">Instituição do Curso</label>
+                                <AutocompleteInput 
+                                    type="school"
+                                    value={informatics.institution}
+                                    onChange={(val) => updateInformatics('institution', val)}
+                                    state={profile.address.state}
+                                    city={profile.address.city}
+                                    className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"
+                                />
+                            </div>
                             <InputField label="Ano de Conclusão" value={informatics.conclusionYear} onChange={(e) => updateInformatics('conclusionYear', e.target.value)} />
                         </div>
                         <button type="button" onClick={() => updateInformatics('isRecent', !informatics.isRecent)} className="flex items-center gap-2 text-sm text-slate-300">
@@ -98,8 +109,26 @@ const Step8_Skills: React.FC = () => {
                         <div key={course.id} className="p-3 bg-slate-700/80 rounded-lg border border-slate-600 space-y-2 relative">
                              <button onClick={() => removeCourse(course.id)} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-400"><TrashIcon className="w-4 h-4" /></button>
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <InputField label="Nome do Curso" value={course.name} onChange={(e) => updateCourse(course.id, 'name', e.target.value)} />
-                                <InputField label="Instituição" value={course.institution} onChange={(e) => updateCourse(course.id, 'institution', e.target.value)} />
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-400 block mb-1">Nome do Curso</label>
+                                    <AutocompleteInput 
+                                        type="course"
+                                        value={course.name}
+                                        onChange={(val) => updateCourse(course.id, 'name', val)}
+                                        className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-400 block mb-1">Instituição</label>
+                                    <AutocompleteInput 
+                                        type="school"
+                                        value={course.institution}
+                                        onChange={(val) => updateCourse(course.id, 'institution', val)}
+                                        state={profile.address.state}
+                                        city={profile.address.city}
+                                        className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"
+                                    />
+                                </div>
                             </div>
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <InputField label="Carga Horária" value={course.workload} onChange={(e) => updateCourse(course.id, 'workload', e.target.value)} placeholder="Ex: 40 horas" />
@@ -119,9 +148,8 @@ const Step8_Skills: React.FC = () => {
 const InputField: React.FC<{ label: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder?: string }> = ({ label, value, onChange, placeholder }) => (
     <div>
         <label className="text-xs font-semibold text-slate-400 block mb-1">{label}</label>
-        <input type="text" value={value} onChange={onChange} placeholder={placeholder} className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600"/>
+        <input type="text" value={value} onChange={onChange} placeholder={placeholder} className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"/>
     </div>
 );
-
 
 export default Step8_Skills;

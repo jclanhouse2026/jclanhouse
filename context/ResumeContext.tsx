@@ -1,8 +1,9 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, query, where, onSnapshot } from '../lib/localDb';
 import type { ResumeData, Experience, Education, Language, Course, InformaticsData, ResumeConfig, Objective, TemplateOption, LineHeightOption, FontSizeOption, ResumeRequest } from '../types';
+import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 // --- INÍCIO: Dados de Configuração Padrão ---
 const initialObjectives: Objective[] = [
@@ -62,6 +63,9 @@ const initialResumeData: ResumeData = {
   templateColor: '#06b6d4',
   fontSize: 10.5,
   lineHeight: 'relaxed',
+  alignment: 'left',
+  fontTitle: 'Inter',
+  fontBody: 'Inter',
 };
 
 interface ResumeContextType {
@@ -89,6 +93,9 @@ interface ResumeContextType {
   setTemplateColor: (color: string) => void;
   setFontSize: (size: number) => void;
   setLineHeight: (height: ResumeData['lineHeight']) => void;
+  setAlignment: (alignment: ResumeData['alignment']) => void;
+  setFontTitle: (font: string) => void;
+  setFontBody: (font: string) => void;
   
   resumeConfig: ResumeConfig;
   updateResumeConfig: (newConfig: Partial<ResumeConfig>) => Promise<void>;
@@ -101,6 +108,10 @@ interface ResumeContextType {
   getRequestById: (id: string) => ResumeRequest | undefined;
   loadResumeIntoBuilder: (data: ResumeData) => void;
   resetResumeBuilder: () => void;
+  importProfileData: (customer: any) => void;
+
+  saveSuggestion: (type: 'role' | 'school' | 'course' | 'company', text: string, state?: string, city?: string) => Promise<void>;
+  getSuggestions: (type: 'role' | 'school' | 'course' | 'company', state?: string, city?: string) => Promise<string[]>;
 }
 
 const ResumeContext = createContext<ResumeContextType | undefined>(undefined);
@@ -126,6 +137,28 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     localStorage.setItem('resumeData', JSON.stringify(resumeData));
   }, [resumeData]);
 
+  const importProfileData = (customer: any) => {
+    setResumeData(prev => ({
+      ...prev,
+      profile: {
+        ...prev.profile,
+        name: customer.fullName || prev.profile.name,
+        email: customer.email || prev.profile.email,
+        phone: customer.phone || prev.profile.phone,
+        dob: customer.dob || prev.profile.dob,
+        photo: customer.photoURL || prev.profile.photo,
+        address: customer.address ? {
+          cep: customer.address.cep || prev.profile.address.cep,
+          street: customer.address.street || prev.profile.address.street,
+          number: customer.address.number || prev.profile.address.number,
+          neighborhood: customer.address.neighborhood || prev.profile.address.neighborhood,
+          city: customer.address.city || prev.profile.address.city,
+          state: customer.address.state || prev.profile.address.state,
+        } : prev.profile.address
+      }
+    }));
+  };
+
   // Fetch resume config from Firestore
   useEffect(() => {
     const fetchConfig = async () => {
@@ -145,30 +178,37 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
 
   useEffect(() => {
-    const fetchRequests = async () => {
-        if (!user) {
-            setResumeRequests([]);
-            return;
-        }
+    if (!user) {
+        setResumeRequests([]);
+        return;
+    }
 
+    const requestsRef = collection(db, 'resume_requests');
+    const q = user.role === 'admin'
+        ? query(requestsRef)
+        : query(requestsRef, where('user_id', '==', user.id));
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const formattedData: ResumeRequest[] = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            userId: doc.data().user_id,
+            userName: doc.data().user_name,
+            userWhatsapp: doc.data().user_whatsapp,
+            status: doc.data().status,
+            requestedAt: doc.data().requested_at,
+            resumeData: doc.data().resume_data,
+        }));
+        setResumeRequests(formattedData);
+    }, (error) => {
         try {
-            const querySnapshot = await getDocs(collection(db, 'resume_requests'));
-            const formattedData: ResumeRequest[] = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                userId: doc.data().user_id,
-                userName: doc.data().user_name,
-                userWhatsapp: doc.data().user_whatsapp,
-                status: doc.data().status,
-                requestedAt: doc.data().requested_at,
-                resumeData: doc.data().resume_data,
-            }));
-            setResumeRequests(formattedData);
+            handleFirestoreError(error, OperationType.LIST, 'resume_requests');
         } catch (e) {
-            console.error("Exceção ao buscar solicitações de currículo:", (e as Error).message);
+            console.error("Erro ao buscar solicitações de currículo:", (e as Error).message);
             setResumeRequests([]);
         }
-    };
-    fetchRequests();
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
 
@@ -182,30 +222,41 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       requested_at: new Date().toISOString(),
     };
 
-    const docRef = await addDoc(collection(db, 'resume_requests'), requestPayload);
-    
-    const newRequest: ResumeRequest = {
-        id: docRef.id,
-        userId: requestPayload.user_id,
-        userName: requestPayload.user_name,
-        userWhatsapp: requestPayload.user_whatsapp,
-        status: requestPayload.status as any,
-        requestedAt: requestPayload.requested_at,
-        resumeData: requestPayload.resume_data,
-    };
-    setResumeRequests(prev => [newRequest, ...prev]);
-    return newRequest;
+    try {
+        const docRef = await addDoc(collection(db, 'resume_requests'), requestPayload);
+        
+        const newRequest: ResumeRequest = {
+            id: docRef.id,
+            userId: requestPayload.user_id,
+            userName: requestPayload.user_name,
+            userWhatsapp: requestPayload.user_whatsapp,
+            status: requestPayload.status as any,
+            requestedAt: requestPayload.requested_at,
+            resumeData: requestPayload.resume_data,
+        };
+        // setResumeRequests(prev => [newRequest, ...prev]); // onSnapshot cuidará disso
+        return newRequest;
+    } catch (error) {
+        return handleFirestoreError(error, OperationType.CREATE, 'resume_requests');
+    }
   };
 
   const updateRequestStatus = async (id: string, status: 'pending' | 'authorized') => {
-    await updateDoc(doc(db, 'resume_requests', id), { status });
-    
-    setResumeRequests(prev => prev.map(req => (req.id === id ? { ...req, status } : req)));
+    try {
+        await updateDoc(doc(db, 'resume_requests', id), { status });
+        // setResumeRequests(prev => prev.map(req => (req.id === id ? { ...req, status } : req))); // onSnapshot cuidará disso
+    } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `resume_requests/${id}`);
+    }
   };
 
   const deleteResumeRequest = async (id: string) => {
-    await deleteDoc(doc(db, 'resume_requests', id));
-    setResumeRequests(prev => prev.filter(req => req.id !== id));
+    try {
+        await deleteDoc(doc(db, 'resume_requests', id));
+        // setResumeRequests(prev => prev.filter(req => req.id !== id)); // onSnapshot cuidará disso
+    } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `resume_requests/${id}`);
+    }
   };
   
   const getRequestsByUserId = (userId: string) => {
@@ -261,6 +312,63 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const setTemplateColor = (color: string) => setResumeData(prev => ({ ...prev, templateColor: color }));
   const setFontSize = (size: number) => setResumeData(prev => ({ ...prev, fontSize: size }));
   const setLineHeight = (height: ResumeData['lineHeight']) => setResumeData(prev => ({ ...prev, lineHeight: height }));
+  const setAlignment = (alignment: ResumeData['alignment']) => setResumeData(prev => ({ ...prev, alignment }));
+  const setFontTitle = (font: string) => setResumeData(prev => ({ ...prev, fontTitle: font }));
+  const setFontBody = (font: string) => setResumeData(prev => ({ ...prev, fontBody: font }));
+
+  const saveSuggestion = async (type: 'role' | 'school' | 'course' | 'company', text: string, state?: string, city?: string) => {
+    if (!text || text.length < 2) return;
+    
+    // Capitalize first letter of each word
+    const formattedText = text.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+
+    try {
+      const suggestionsRef = collection(db, 'suggestions');
+      let q = query(suggestionsRef, where('type', '==', type), where('text', '==', formattedText));
+      
+      if (state) q = query(q, where('state', '==', state));
+      if (city) q = query(q, where('city', '==', city));
+
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        await addDoc(suggestionsRef, {
+          type,
+          text: formattedText,
+          state: state || null,
+          city: city || null,
+          count: 1,
+          createdAt: new Date().toISOString()
+        });
+      } else {
+        const docRef = doc(db, 'suggestions', querySnapshot.docs[0].id);
+        await updateDoc(docRef, {
+          count: (querySnapshot.docs[0].data().count || 0) + 1
+        });
+      }
+    } catch (error) {
+      console.error("Error saving suggestion:", error);
+    }
+  };
+
+  const getSuggestions = async (type: 'role' | 'school' | 'course' | 'company', state?: string, city?: string): Promise<string[]> => {
+    try {
+      const suggestionsRef = collection(db, 'suggestions');
+      let q = query(suggestionsRef, where('type', '==', type));
+      
+      if (state) q = query(q, where('state', '==', state));
+      if (city) q = query(q, where('city', '==', city));
+
+      const querySnapshot = await getDocs(q);
+      const results = querySnapshot.docs.map(doc => doc.data().text as string);
+      
+      // Remove duplicates and return top 10 (or similar)
+      return Array.from(new Set(results)).slice(0, 20);
+    } catch (error) {
+      console.error("Error getting suggestions:", error);
+      return [];
+    }
+  };
 
   const updateInformatics = (field: keyof InformaticsData | `skills.${keyof InformaticsData['skills']}`, value: any) => {
     setResumeData(prev => {
@@ -286,10 +394,11 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       resumeData, updateTitle, updateProfile, updateAddress, updateCnh, updateSummary, addExperience, updateExperience,
       removeExperience, addEducation, updateEducation, removeEducation, addCourse, updateCourse, removeCourse,
       updateInformatics, setOrUpdateLanguage, addLanguage, updateLanguage, removeLanguage, setTemplate,
-      setTemplateColor, setFontSize, setLineHeight,
+      setTemplateColor, setFontSize, setLineHeight, setAlignment, setFontTitle, setFontBody,
       resumeConfig, updateResumeConfig,
       addResumeRequest, updateRequestStatus, deleteResumeRequest, getRequestsByUserId, getAllRequests, getRequestById,
-      loadResumeIntoBuilder, resetResumeBuilder
+      loadResumeIntoBuilder, resetResumeBuilder, importProfileData,
+      saveSuggestion, getSuggestions
     }}>
       {children}
     </ResumeContext.Provider>

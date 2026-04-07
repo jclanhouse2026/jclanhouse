@@ -1,11 +1,28 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useResume } from '../../../context/ResumeContext';
 import PlusIcon from '../../icons/PlusIcon';
 import TrashIcon from '../../icons/TrashIcon';
+import AutocompleteInput from '../AutocompleteInput';
+import SparklesIcon from '../../icons/SparklesIcon';
+import { correctText } from '../../../services/geminiService';
 
 const Step6_Experience: React.FC = () => {
     const { resumeData, addExperience, updateExperience, removeExperience } = useResume();
+    const [isCorrecting, setIsCorrecting] = useState<string | null>(null);
+
+    const handleCorrectText = async (id: string, text: string) => {
+        if (!text || text.length < 10) return;
+        setIsCorrecting(id);
+        try {
+            const corrected = await correctText(text);
+            updateExperience(id, 'description', corrected);
+        } catch (error) {
+            console.error("Erro ao corrigir texto:", error);
+        } finally {
+            setIsCorrecting(null);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -22,11 +39,41 @@ const Step6_Experience: React.FC = () => {
                                 <TrashIcon className="w-5 h-5" />
                             </button>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <InputField label="Cargo" value={exp.role} onChange={e => updateExperience(exp.id, 'role', e.target.value)} />
-                                <InputField label="Empresa" value={exp.company} onChange={e => updateExperience(exp.id, 'company', e.target.value)} />
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-400 block mb-1">Cargo</label>
+                                    <AutocompleteInput 
+                                        type="role"
+                                        value={exp.role}
+                                        onChange={val => updateExperience(exp.id, 'role', val)}
+                                        placeholder="Ex: Vendedor"
+                                        className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-400 block mb-1">Empresa</label>
+                                    <AutocompleteInput 
+                                        type="company"
+                                        value={exp.company}
+                                        onChange={val => updateExperience(exp.id, 'company', val)}
+                                        placeholder="Ex: Loja ABC"
+                                        className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"
+                                    />
+                                </div>
                             </div>
                             <InputField label="Período" value={exp.period} onChange={e => updateExperience(exp.id, 'period', e.target.value)} placeholder="Ex: Jan 2020 - Dez 2022" />
-                            <TextAreaField label="Descrição das Atividades" value={exp.description} onChange={e => updateExperience(exp.id, 'description', e.target.value)} />
+                            
+                            <div className="relative">
+                                <TextAreaField label="Descrição das Atividades" value={exp.description} onChange={e => updateExperience(exp.id, 'description', e.target.value)} />
+                                <button
+                                    onClick={() => handleCorrectText(exp.id, exp.description)}
+                                    disabled={isCorrecting === exp.id || !exp.description}
+                                    className="absolute top-0 right-0 flex items-center gap-1 text-[10px] bg-cyan-600/20 text-cyan-400 px-2 py-1 rounded hover:bg-cyan-600/40 transition-colors disabled:opacity-50"
+                                    title="Corrigir gramática com IA"
+                                >
+                                    <SparklesIcon className={`w-3 h-3 ${isCorrecting === exp.id ? 'animate-spin' : ''}`} />
+                                    {isCorrecting === exp.id ? 'Corrigindo...' : 'Corrigir com IA'}
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -46,16 +93,15 @@ const Step6_Experience: React.FC = () => {
 const InputField: React.FC<{ label: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder?: string }> = ({ label, value, onChange, placeholder }) => (
     <div>
         <label className="text-xs font-semibold text-slate-400 block mb-1">{label}</label>
-        <input type="text" value={value} onChange={onChange} placeholder={placeholder} className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600"/>
+        <input type="text" value={value} onChange={onChange} placeholder={placeholder} className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"/>
     </div>
 );
 
 const TextAreaField: React.FC<{ label: string; value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; }> = ({ label, value, onChange }) => (
      <div>
         <label className="text-xs font-semibold text-slate-400 block mb-1">{label}</label>
-        <textarea value={value} onChange={onChange} rows={3} placeholder="Descreva suas principais responsabilidades..." className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600"/>
+        <textarea value={value} onChange={onChange} rows={3} placeholder="Descreva suas principais responsabilidades..." className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"/>
     </div>
 );
-
 
 export default Step6_Experience;

@@ -1,7 +1,8 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, where, orderBy, onSnapshot } from '../lib/localDb';
+import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 export type Expense = {
     id: string;
@@ -29,39 +30,43 @@ export const ExpensesProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
   useEffect(() => {
-    const fetchExpenses = async () => {
-        if (!user) {
-            setExpenses([]);
-            return;
-        }
-        
+    if (!user) {
+        setExpenses([]);
+        return;
+    }
+    
+    const expensesRef = collection(db, 'expenses');
+    const q = user.role === 'admin'
+        ? query(expensesRef, orderBy('date_time', 'desc'))
+        : query(expensesRef, where('user_id', '==', user.id), orderBy('date_time', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const formattedData = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                userId: data.user_id,
+                dateTime: new Date(data.date_time),
+                expenseType: data.expense_type,
+                description: data.description,
+                observation: data.observation,
+                supplier: data.supplier,
+                category: data.category,
+                total: data.total,
+                paymentMethod: data.payment_method,
+            };
+        });
+        setExpenses(formattedData);
+    }, (error) => {
         try {
-            const expensesRef = collection(db, 'expenses');
-            const querySnapshot = await getDocs(expensesRef);
-            
-            const formattedData = querySnapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    userId: data.user_id,
-                    dateTime: new Date(data.date_time),
-                    expenseType: data.expense_type,
-                    description: data.description,
-                    observation: data.observation,
-                    supplier: data.supplier,
-                    category: data.category,
-                    total: data.total,
-                    paymentMethod: data.payment_method,
-                };
-            });
-            
-            setExpenses(formattedData.sort((a, b) => b.dateTime.getTime() - a.dateTime.getTime()));
-        } catch(e) {
-            console.error("Exceção ao buscar despesas:", (e as Error).message);
+            handleFirestoreError(error, OperationType.LIST, 'expenses');
+        } catch (e) {
+            console.error("Erro ao buscar despesas:", (e as Error).message);
             setExpenses([]);
         }
-    };
-    fetchExpenses();
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   const expensesForCurrentUser = useMemo(() => {
@@ -85,21 +90,25 @@ export const ExpensesProvider: React.FC<{ children: ReactNode }> = ({ children }
       payment_method: expenseData.paymentMethod,
     };
 
-    const docRef = await addDoc(collection(db, 'expenses'), newExpenseData);
+    try {
+        const docRef = await addDoc(collection(db, 'expenses'), newExpenseData);
 
-    const newExpense: Expense = {
-        id: docRef.id,
-        userId: newExpenseData.user_id,
-        dateTime: new Date(newExpenseData.date_time),
-        expenseType: newExpenseData.expense_type,
-        description: newExpenseData.description,
-        observation: newExpenseData.observation,
-        supplier: newExpenseData.supplier,
-        category: newExpenseData.category,
-        total: newExpenseData.total,
-        paymentMethod: newExpenseData.payment_method,
-    };
-    setExpenses(prevExpenses => [newExpense, ...prevExpenses]);
+        const newExpense: Expense = {
+            id: docRef.id,
+            userId: newExpenseData.user_id,
+            dateTime: new Date(newExpenseData.date_time),
+            expenseType: newExpenseData.expense_type,
+            description: newExpenseData.description,
+            observation: newExpenseData.observation,
+            supplier: newExpenseData.supplier,
+            category: newExpenseData.category,
+            total: newExpenseData.total,
+            paymentMethod: newExpenseData.payment_method,
+        };
+        // setExpenses(prevExpenses => [newExpense, ...prevExpenses]); // onSnapshot cuidará disso
+    } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'expenses');
+    }
   };
 
   return (

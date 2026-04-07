@@ -7,8 +7,8 @@ interface StepperProps {
 }
 
 const stepLabels = [
-    'Início', 'Básico', 'Local', 'Detalhes', 'Resumo', 
-    'Experiência', 'Formação', 'Qualificações', 'Idiomas', 'Finalizar'
+    'Início', 'Básico', 'Local', 'Detalhes', 'Experiência', 
+    'Formação', 'Qualificações', 'Idiomas', 'Resumo', 'Finalizar'
 ];
 
 const Stepper: React.FC<StepperProps> = ({ currentStep, totalSteps }) => {

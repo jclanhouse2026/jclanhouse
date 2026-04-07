@@ -1,9 +1,15 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 import { useResume } from '../../../context/ResumeContext';
+import { useCustomers } from '../../../context/CustomerContext';
+import { useAuth } from '../../../context/AuthContext';
+import { SafeImage } from '../../SafeImage';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
 import XCircleIcon from '../../icons/XCircleIcon';
+import UserIcon from '../../icons/UserIcon';
+import CameraIcon from '../../icons/CameraIcon';
+import PhotoIcon from '../../icons/ImageIcon';
 
 // Helper function to create a cropped image
 const createCroppedImage = (imageSrc: string, crop: Area): Promise<string> => {
@@ -108,8 +114,11 @@ const ImageCropModal: React.FC<{ imageSrc: string; onComplete: (croppedImage: st
 
 const Step4_Details: React.FC = () => {
     const { resumeData, updateProfile, updateCnh } = useResume();
+    const { customersForCurrentUser } = useCustomers();
+    const { user } = useAuth();
     const [imageToCrop, setImageToCrop] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -127,9 +136,26 @@ const Step4_Details: React.FC = () => {
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
+        if (cameraInputRef.current) {
+            cameraInputRef.current.value = "";
+        }
     };
 
-    const cnhCategories = ['Não possui', 'A', 'B', 'AB', 'C', 'D', 'E'];
+    const handleImportPhoto = () => {
+        if (customersForCurrentUser.length > 0 && customersForCurrentUser[0].photoURL) {
+            updateProfile('photo', customersForCurrentUser[0].photoURL);
+        }
+    };
+
+    const cnhCategories = ['Não possui', 'A', 'B', 'AB', 'C', 'D', 'E', 'AC', 'AD', 'AE'];
+
+    const cnhLegend = [
+        { cat: 'A', desc: 'Motos e triciclos' },
+        { cat: 'B', desc: 'Carros de passeio' },
+        { cat: 'C', desc: 'Caminhões e veículos de carga (>3,5t)' },
+        { cat: 'D', desc: 'Ônibus e vans (>8 passageiros)' },
+        { cat: 'E', desc: 'Veículos com reboque, carretas' },
+    ];
 
     return (
         <div className="space-y-8">
@@ -143,11 +169,11 @@ const Step4_Details: React.FC = () => {
                 <h2 className="text-2xl font-bold text-white">Ótimo! Agora, alguns detalhes finais.</h2>
                 <p className="text-slate-400 mt-1">Adicione uma foto e sua CNH, se possuir.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                <div className="space-y-6">
                     <div>
-                        <label className="text-sm font-semibold text-slate-300 block mb-2">Carteira Nacional de Habilitação (CNH)</label>
-                        <div className="flex flex-wrap gap-2">
+                        <label className="text-sm font-semibold text-slate-300 block mb-3">Carteira Nacional de Habilitação (CNH)</label>
+                        <div className="flex flex-wrap gap-2 mb-4">
                             {cnhCategories.map(cat => (
                                 <button
                                     key={cat}
@@ -160,6 +186,18 @@ const Step4_Details: React.FC = () => {
                                     {cat === 'Não possui' ? cat : `Cat. ${cat}`}
                                 </button>
                             ))}
+                        </div>
+
+                        <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 space-y-1">
+                            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Legenda de Categorias</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                                {cnhLegend.map(item => (
+                                    <div key={item.cat} className="flex gap-2 text-[11px] text-slate-400">
+                                        <span className="font-bold text-cyan-500 w-4">{item.cat}:</span>
+                                        <span>{item.desc}</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                     {resumeData.profile.cnh.category !== 'Não possui' && (
@@ -188,14 +226,54 @@ const Step4_Details: React.FC = () => {
                         </div>
                     )}
                 </div>
-                 <div className="flex flex-col items-center">
-                    <label className="text-sm font-semibold text-slate-300 block mb-2">Sua Foto de Perfil</label>
-                    <div className="relative">
-                        <img src={resumeData.profile.photo || `https://ui-avatars.com/api/?name=${resumeData.profile.name || '?'}&background=0d9488&color=fff&size=128`} alt="Foto de Perfil" className="w-28 h-28 rounded-full object-cover border-4 border-slate-600" />
-                        <label htmlFor="photo-upload" className="absolute bottom-0 right-0 bg-slate-600 p-2 rounded-full cursor-pointer hover:bg-slate-500">
-                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 6.732z" /></svg>
-                           <input id="photo-upload" ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={onFileChange} />
-                        </label>
+                 <div className="flex flex-col items-center space-y-6">
+                    <div className="text-center">
+                        <label className="text-sm font-semibold text-slate-300 block mb-4">Sua Foto de Perfil</label>
+                        <div className="relative group">
+                            <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-slate-700 shadow-xl relative">
+                                <SafeImage src={resumeData.profile.photo} alt="Foto de Perfil" className="w-full h-full object-cover" fallbackType="avatar" />
+                                {resumeData.profile.photo && (
+                                    <button 
+                                        onClick={() => updateProfile('photo', '')}
+                                        className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <XCircleIcon className="w-8 h-8 text-white" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="w-full max-w-xs space-y-3">
+                        {user && customersForCurrentUser.length > 0 && customersForCurrentUser[0].photoURL && (
+                            <button 
+                                onClick={handleImportPhoto}
+                                className="w-full flex items-center justify-center gap-2 bg-cyan-600/20 text-cyan-400 border border-cyan-600/30 py-2.5 px-4 rounded-xl text-sm font-bold hover:bg-cyan-600/30 transition-colors"
+                            >
+                                <UserIcon className="w-4 h-4" />
+                                Usar Foto do Cadastro
+                            </button>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex flex-col items-center justify-center gap-2 bg-slate-800 border border-slate-700 p-3 rounded-xl hover:bg-slate-700 transition-colors"
+                            >
+                                <PhotoIcon className="w-5 h-5 text-slate-400" />
+                                <span className="text-[10px] font-bold text-slate-300 uppercase">Galeria</span>
+                                <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={onFileChange} />
+                            </button>
+
+                            <button 
+                                onClick={() => cameraInputRef.current?.click()}
+                                className="flex flex-col items-center justify-center gap-2 bg-slate-800 border border-slate-700 p-3 rounded-xl hover:bg-slate-700 transition-colors"
+                            >
+                                <CameraIcon className="w-5 h-5 text-slate-400" />
+                                <span className="text-[10px] font-bold text-slate-300 uppercase">Câmera</span>
+                                <input ref={cameraInputRef} type="file" className="hidden" accept="image/*" capture="user" onChange={onFileChange} />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

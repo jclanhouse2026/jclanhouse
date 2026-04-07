@@ -69,6 +69,7 @@ const AdminLayout: React.FC = () => {
         <SidebarLink to="/admin/categorias" icon={TagIcon}>Categorias</SidebarLink>
         <SidebarLink to="/admin/temas" icon={PhotographIcon}>Temas Caderneta</SidebarLink>
         <SidebarLink to="/admin/temas-escolares" icon={PhotographIcon}>Temas Escolares</SidebarLink>
+        <SidebarLink to="/admin/temas-canecas" icon={PhotographIcon}>Temas Canecas</SidebarLink>
         <SidebarLink to="/admin/imagens" icon={InboxInIcon}>Imagens Enviadas</SidebarLink>
         <SidebarLink to="/admin/relatorios" icon={ReportIcon}>Relatórios</SidebarLink>
         <SidebarLink to="/admin/curriculos" icon={DocumentTextIcon}>Currículos</SidebarLink>

@@ -63,13 +63,33 @@ const AuthorizationRequestModal: React.FC<{
 
 
 const Step10_Finalize: React.FC = () => {
-    const { resumeData, setTemplate, setTemplateColor, setFontSize, setLineHeight, resumeConfig, addResumeRequest } = useResume();
+    const { 
+        resumeData, setTemplate, setTemplateColor, setFontSize, setLineHeight, 
+        setAlignment, setFontTitle, setFontBody, resumeConfig, addResumeRequest 
+    } = useResume();
     const navigate = useNavigate();
     const { templates, colors, lineHeights, fontSizes } = resumeConfig;
     
     const resumePreviewRef = useRef<HTMLDivElement>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [requestStatus, setRequestStatus] = useState<'idle' | 'requesting' | 'requested'>('idle');
+
+    const fonts = [
+        { id: 'Inter', name: 'Inter' },
+        { id: 'Roboto', name: 'Roboto' },
+        { id: 'Open Sans', name: 'Open Sans' },
+        { id: 'Playfair Display', name: 'Playfair' },
+        { id: 'Montserrat', name: 'Montserrat' },
+        { id: 'Lato', name: 'Lato' },
+        { id: 'Merriweather', name: 'Merriweather' },
+    ];
+
+    const alignments = [
+        { id: 'left', name: 'Esquerda' },
+        { id: 'center', name: 'Centro' },
+        { id: 'right', name: 'Direita' },
+        { id: 'justify', name: 'Justificado' },
+    ];
 
     const handleRequestAuthorization = async (details: { name: string; whatsapp: string }) => {
         setRequestStatus('requesting');
@@ -98,17 +118,50 @@ const Step10_Finalize: React.FC = () => {
             <div className="space-y-4 bg-slate-700/50 p-4 rounded-lg">
                 <div>
                     <label className="text-sm font-semibold text-slate-300 mb-2 block">Modelo</label>
-                    <div className="flex gap-2 flex-wrap">
-                        {templates.map(t => <button key={t.id} onClick={() => setTemplate(t.id as any)} className={`flex-1 py-2 text-xs font-semibold rounded-md ${resumeData.template === t.id ? 'bg-cyan-500 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>{t.name}</button>)}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {templates.map(t => <button key={t.id} onClick={() => setTemplate(t.id as any)} className={`py-2 text-xs font-semibold rounded-md ${resumeData.template === t.id ? 'bg-cyan-500 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>{t.name}</button>)}
                     </div>
                 </div>
-                <div>
-                    <label className="text-sm font-semibold text-slate-300 mb-2 block">Cor de Destaque</label>
-                    <div className="flex gap-2 flex-wrap">
-                        {colors.map(c => <button key={c} onClick={() => setTemplateColor(c)} style={{ backgroundColor: c }} className={`w-8 h-8 rounded-full ${resumeData.templateColor === c ? 'ring-2 ring-offset-2 ring-offset-slate-800 ring-white' : ''}`}></button>)}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-sm font-semibold text-slate-300 mb-2 block">Cor de Destaque</label>
+                        <div className="flex gap-2 flex-wrap">
+                            {colors.map(c => <button key={c} onClick={() => setTemplateColor(c)} style={{ backgroundColor: c }} className={`w-8 h-8 rounded-full ${resumeData.templateColor === c ? 'ring-2 ring-offset-2 ring-offset-slate-800 ring-white' : ''}`}></button>)}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-sm font-semibold text-slate-300 mb-2 block">Alinhamento do Texto</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {alignments.map(a => <button key={a.id} onClick={() => setAlignment(a.id as any)} className={`py-2 text-xs font-semibold rounded-md ${resumeData.alignment === a.id ? 'bg-cyan-500 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>{a.name}</button>)}
+                        </div>
                     </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-600">
+                    <div>
+                        <label className="text-sm font-semibold text-slate-300 mb-2 block">Fonte dos Títulos</label>
+                        <select 
+                            value={resumeData.fontTitle} 
+                            onChange={(e) => setFontTitle(e.target.value)}
+                            className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"
+                        >
+                            {fonts.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-sm font-semibold text-slate-300 mb-2 block">Fonte do Texto</label>
+                        <select 
+                            value={resumeData.fontBody} 
+                            onChange={(e) => setFontBody(e.target.value)}
+                            className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"
+                        >
+                            {fonts.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-600">
                     <div>
                         <label className="text-sm font-semibold text-slate-300 mb-2 block">Tamanho da Fonte</label>
                          <div className="flex gap-2 flex-wrap">

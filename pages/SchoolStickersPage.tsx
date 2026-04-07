@@ -145,7 +145,7 @@ const SchoolStickersPage: React.FC = () => {
                                             <div key={i} className="bg-slate-200/80 rounded-lg p-2 flex items-center gap-2">
                                                 <div className="w-6 h-6 bg-slate-300 rounded-sm flex-shrink-0"></div>
                                                 <div>
-                                                    <p className="text-xs font-semibold">{studentName.split(' ')[0] || 'Nome'}</p>
+                                                    <p className="text-xs font-semibold">{(studentName || '').split(' ')[0] || 'Nome'}</p>
                                                     <p className="text-[10px] text-slate-500">{studentGrade || 'Série'}</p>
                                                 </div>
                                             </div>
@@ -201,7 +201,7 @@ const SchoolStickersPage: React.FC = () => {
                                         <button key={pkg.id} onClick={() => setSelectedPackage(pkg)} className={`w-full flex justify-between items-center p-4 rounded-lg border-2 text-left transition-all duration-200 ${selectedPackage.id === pkg.id ? 'bg-indigo-600 border-indigo-500 shadow-lg' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}>
                                             <div>
                                                 <p className={`font-semibold ${selectedPackage.id === pkg.id ? 'text-white' : 'text-slate-300'}`}>{pkg.name}</p>
-                                                <p className="text-xs text-slate-400">{pkg.description}</p>
+                                                <p className="text-xs text-slate-400">{pkg.description} {pkg.size && `• Tamanho: ${pkg.size}`}</p>
                                             </div>
                                             <p className="font-bold text-lg">{formatCurrency(pkg.price)}</p>
                                         </button>

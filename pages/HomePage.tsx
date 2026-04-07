@@ -1,21 +1,25 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useHomeSettings } from '../context/HomeSettingsContext';
 import { useMyWorks } from '../context/MyWorksContext';
+import { useThemes } from '../context/ThemeContext';
 import ProductCard from '../components/ProductCard';
 import { IconMap } from '../components/IconMap';
 
 
 const HomePage: React.FC = () => {
+    const navigate = useNavigate();
     const { products } = usePortfolio();
     const { settings } = useHomeSettings();
     const { works, error } = useMyWorks();
+    const { themes } = useThemes();
     const { hero, categories, differentials } = settings;
 
     const featuredProducts = products.filter(p => p.images.length > 0).slice(0, 4);
+    const mugThemes = themes.filter(t => t.type === 'caneca').slice(0, 4);
 
     const getVideoEmbedUrl = (url: string): string | null => {
         if (!url) return null;
@@ -69,34 +73,86 @@ const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Navegue por Categorias */}
-        <section className="pb-20 bg-slate-800 -mt-24">
-          <div className="container mx-auto px-4">
-             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold text-white">Navegue por Categorias</h2>
-                <p className="text-slate-400 mt-2">Encontre exatamente o que você precisa.</p>
-            </div>
-            <div className="flex flex-wrap justify-center">
-                {categories.map((category) => {
-                    const Icon = IconMap[category.icon] || IconMap['GiftIcon'];
-                    return(
-                        <div key={category.id} className="w-full md:w-4/12 lg:w-3/12 px-4 text-center">
-                            <Link to={category.link}>
-                                <div className="relative flex flex-col min-w-0 break-words bg-slate-900 w-full mb-8 shadow-2xl rounded-lg transform hover:-translate-y-2 transition-transform duration-300">
-                                    <div className="px-4 py-5 flex-auto">
-                                        <div className="text-white p-3 text-center inline-flex items-center justify-center w-12 h-12 mb-5 shadow-lg rounded-full bg-cyan-500/20 text-cyan-400">
-                                            <Icon />
-                                        </div>
-                                        <h6 className="text-xl font-semibold">{category.name}</h6>
-                                    </div>
-                                </div>
-                            </Link>
+        {/* Temas de Caneca em Destaque */}
+        {settings.mugThemesBanner?.enabled && (
+          <section className="pb-20 bg-slate-800 -mt-24">
+            <div className="container mx-auto px-4">
+              <div 
+                className={`bg-slate-900 rounded-3xl p-8 md:p-12 shadow-2xl border border-slate-700 relative overflow-hidden transition-all duration-300 ${settings.mugThemesBanner.fullClickable ? 'cursor-pointer hover:border-cyan-500/50 hover:shadow-cyan-500/10' : ''}`}
+                onClick={() => {
+                  if (settings.mugThemesBanner?.fullClickable) {
+                    navigate(settings.mugThemesBanner.link);
+                  }
+                }}
+              >
+                <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 blur-3xl -mr-32 -mt-32 rounded-full"></div>
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 blur-3xl -ml-32 -mb-32 rounded-full"></div>
+                
+                <div className="relative z-10 flex flex-col lg:flex-row items-center gap-12">
+                  <div className="w-full lg:w-1/2">
+                    <span className="bg-cyan-500/20 text-cyan-400 text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest mb-4 inline-block">
+                      NOVIDADE
+                    </span>
+                    <h2 className="text-4xl md:text-5xl font-black text-white leading-tight">
+                      {settings.mugThemesBanner.title.split('Canecas')[0]}
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Canecas</span>
+                      {settings.mugThemesBanner.title.split('Canecas')[1]}
+                    </h2>
+                    <p className="text-slate-400 mt-6 text-lg leading-relaxed">
+                      {settings.mugThemesBanner.subtitle}
+                    </p>
+                    <div className="mt-10 flex flex-wrap gap-4">
+                      <Link 
+                        to={settings.mugThemesBanner.link} 
+                        className="bg-cyan-500 text-white font-black py-4 px-10 rounded-2xl hover:bg-cyan-600 transition-all shadow-xl shadow-cyan-500/20 transform hover:scale-105 active:scale-95"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {settings.mugThemesBanner.buttonText}
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="w-full lg:w-1/2 grid grid-cols-2 gap-4">
+                    {mugThemes.length > 0 ? (
+                      <>
+                        <div className="space-y-4">
+                          {mugThemes.slice(0, 2).map((theme, idx) => (
+                            <img 
+                              key={theme.id} 
+                              src={theme.imageUrl} 
+                              alt={theme.name} 
+                              className={`rounded-2xl shadow-lg border border-slate-700 transform ${idx === 0 ? 'hover:rotate-2' : 'hover:-rotate-1'} transition-transform w-full aspect-square object-cover`} 
+                            />
+                        ))}
                         </div>
-                    );
-                })}
+                        <div className="space-y-4 pt-8">
+                          {mugThemes.slice(2, 4).map((theme, idx) => (
+                            <img 
+                              key={theme.id} 
+                              src={theme.imageUrl} 
+                              alt={theme.name} 
+                              className={`rounded-2xl shadow-lg border border-slate-700 transform ${idx === 0 ? 'hover:-rotate-2' : 'hover:rotate-1'} transition-transform w-full aspect-square object-cover`} 
+                            />
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="space-y-4">
+                          <img src="https://picsum.photos/seed/mug1/400/400" alt="Caneca 1" className="rounded-2xl shadow-lg border border-slate-700 transform hover:rotate-2 transition-transform w-full aspect-square object-cover" />
+                          <img src="https://picsum.photos/seed/mug2/400/400" alt="Caneca 2" className="rounded-2xl shadow-lg border border-slate-700 transform hover:-rotate-1 transition-transform w-full aspect-square object-cover" />
+                        </div>
+                        <div className="space-y-4 pt-8">
+                          <img src="https://picsum.photos/seed/mug3/400/400" alt="Caneca 3" className="rounded-2xl shadow-lg border border-slate-700 transform hover:-rotate-2 transition-transform w-full aspect-square object-cover" />
+                          <img src="https://picsum.photos/seed/mug4/400/400" alt="Caneca 4" className="rounded-2xl shadow-lg border border-slate-700 transform hover:rotate-1 transition-transform w-full aspect-square object-cover" />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Produtos em Destaque */}
         <section className="py-20 bg-slate-900">

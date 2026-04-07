@@ -28,7 +28,7 @@ const CustomerDashboardPage: React.FC = () => {
 
     return (
         <div className="bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-700">
-            <h2 className="text-2xl font-bold text-white mb-2">Bem-vindo(a), {currentUser?.fullName.split(' ')[0]}!</h2>
+            <h2 className="text-2xl font-bold text-white mb-2">Bem-vindo(a), {currentUser?.fullName?.split(' ')[0] || 'Cliente'}!</h2>
             <p className="text-slate-400 mb-6">Aqui está um resumo rápido da sua atividade recente.</p>
             
             <h3 className="text-lg font-semibold text-white mb-4">Pedidos Recentes</h3>

@@ -45,6 +45,23 @@ const AdminHomeSettingsPage: React.FC = () => {
         setLocalSettings(prev => ({...prev, hero: {...prev.hero, [field]: value }}));
     };
 
+    const handleMugBannerChange = (field: string, value: any) => {
+        setLocalSettings(prev => ({
+            ...prev, 
+            mugThemesBanner: {
+                ...(prev.mugThemesBanner || {
+                    enabled: true,
+                    title: "Temas de Canecas Personalizadas",
+                    subtitle: "Escolha entre centenas de estampas exclusivas para sua caneca.",
+                    buttonText: "VER TODOS OS TEMAS",
+                    link: "/temas-canecas",
+                    fullClickable: true
+                }),
+                [field]: value 
+            }
+        }));
+    };
+
     const handleItemChange = (section: 'categories' | 'differentials' | 'siteLinks' | 'serviceLinks', index: number, field: string, value: string) => {
         setLocalSettings(prev => {
             const newSection = [...prev[section]];
@@ -112,6 +129,35 @@ const AdminHomeSettingsPage: React.FC = () => {
                     <InputField label="URL da Imagem de Fundo" value={localSettings.hero.imageUrl} onChange={e => handleHeroChange('imageUrl', e.target.value)} />
                     <InputField label="Título Principal" value={localSettings.hero.title} onChange={e => handleHeroChange('title', e.target.value)} />
                     <InputField label="Subtítulo" value={localSettings.hero.subtitle} onChange={e => handleHeroChange('subtitle', e.target.value)} />
+                </Section>
+
+                <Section title="Banner de Temas de Caneca (Home)">
+                    <div className="flex items-center gap-4 mb-4 p-4 bg-slate-700/30 rounded-lg">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={localSettings.mugThemesBanner?.enabled ?? true} 
+                                onChange={e => handleMugBannerChange('enabled', e.target.checked)}
+                                className="w-4 h-4 accent-cyan-500"
+                            />
+                            <span className="text-sm font-bold text-white">Ativar Seção na Home</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={localSettings.mugThemesBanner?.fullClickable ?? true} 
+                                onChange={e => handleMugBannerChange('fullClickable', e.target.checked)}
+                                className="w-4 h-4 accent-cyan-500"
+                            />
+                            <span className="text-sm font-bold text-white">Tornar Card Inteiro Clicável</span>
+                        </label>
+                    </div>
+                    <InputField label="Título do Banner" value={localSettings.mugThemesBanner?.title || ''} onChange={e => handleMugBannerChange('title', e.target.value)} />
+                    <InputField label="Subtítulo/Descrição" value={localSettings.mugThemesBanner?.subtitle || ''} onChange={e => handleMugBannerChange('subtitle', e.target.value)} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <InputField label="Texto do Botão" value={localSettings.mugThemesBanner?.buttonText || ''} onChange={e => handleMugBannerChange('buttonText', e.target.value)} />
+                        <InputField label="Link de Destino" value={localSettings.mugThemesBanner?.link || ''} onChange={e => handleMugBannerChange('link', e.target.value)} />
+                    </div>
                 </Section>
                 
                 <Section title="Seção de Categorias">

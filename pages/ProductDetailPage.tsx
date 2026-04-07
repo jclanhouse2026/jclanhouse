@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -78,6 +78,30 @@ const ProductDetailPage: React.FC = () => {
         setTimeout(() => setAddedToCart(false), 2000);
     };
 
+    useEffect(() => {
+        if (product) {
+            document.title = `${product.name} | Gráfica`;
+            
+            // Update Open Graph tags
+            const setMetaTag = (property: string, content: string) => {
+                let tag = document.querySelector(`meta[property="${property}"]`);
+                if (!tag) {
+                    tag = document.createElement('meta');
+                    tag.setAttribute('property', property);
+                    document.head.appendChild(tag);
+                }
+                tag.setAttribute('content', content);
+            };
+
+            setMetaTag('og:title', product.name);
+            setMetaTag('og:description', product.description);
+            if (product.images.length > 0) {
+                setMetaTag('og:image', product.images[0].url);
+            }
+            setMetaTag('og:url', window.location.href);
+        }
+    }, [product]);
+
     if (!product) {
         return (
             <div className="min-h-screen bg-slate-900 text-white flex flex-col">
@@ -101,7 +125,7 @@ const ProductDetailPage: React.FC = () => {
             <Header />
             <main className="flex-grow container mx-auto px-4 py-8 sm:px-6 lg:px-8">
                 <div className="mb-6">
-                    <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
+                    <button onClick={() => navigate(-1)} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center gap-2 w-fit">
                         <ChevronLeftIcon className="w-5 h-5" />
                         Voltar
                     </button>
@@ -194,6 +218,26 @@ const ProductDetailPage: React.FC = () => {
                             <button onClick={handleAddToCart} className={`w-full font-bold py-4 px-6 rounded-lg shadow-lg flex items-center justify-center gap-3 transition-all text-lg ${addedToCart ? 'bg-emerald-500' : 'bg-cyan-600 hover:bg-cyan-700'}`}>
                                 <ShoppingCartIcon className="w-6 h-6" />
                                 {addedToCart ? 'Adicionado!' : 'Adicionar ao Carrinho'}
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    if (navigator.share) {
+                                        navigator.share({
+                                            title: product.name,
+                                            text: product.description,
+                                            url: window.location.href,
+                                        }).catch(console.error);
+                                    } else {
+                                        navigator.clipboard.writeText(window.location.href);
+                                        alert('Link copiado para a área de transferência!');
+                                    }
+                                }}
+                                className="w-full block text-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+                                </svg>
+                                Compartilhar Produto
                             </button>
                              <Link to="/portfolio" className="w-full block text-center bg-transparent hover:bg-slate-700 border-2 border-slate-600 text-slate-300 font-bold py-3 px-6 rounded-lg transition-colors">
                                 Continuar Comprando

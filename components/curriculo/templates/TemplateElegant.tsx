@@ -8,9 +8,10 @@ const PhoneIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w
 const LocationIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>;
 
 const TemplateElegant: React.FC<{ data: ResumeData }> = ({ data }) => {
-    const { profile, summary, experiences, education, courses, informatics, languages, templateColor, fontSize, lineHeight, title } = data;
+    const { profile, summary, experiences, education, courses, informatics, languages, templateColor, fontSize, lineHeight, title, alignment, fontTitle, fontBody } = data;
     const color = templateColor || '#4b5563'; // gray-600
     const lineHeightClasses = { snug: 'leading-snug', relaxed: 'leading-relaxed', loose: 'leading-loose' };
+    const alignmentClasses = { left: 'text-left', center: 'text-center', right: 'text-right', justify: 'text-justify' };
 
     const formattedAddress = [
         profile.address.street,
@@ -20,7 +21,7 @@ const TemplateElegant: React.FC<{ data: ResumeData }> = ({ data }) => {
 
     const SectionTitle: React.FC<{children: React.ReactNode}> = ({children}) => (
         <div className="text-center my-4">
-            <h2 className="text-lg font-bold uppercase tracking-widest" style={{ color }}>{children}</h2>
+            <h2 className="text-lg font-bold uppercase tracking-widest" style={{ color, fontFamily: fontTitle || 'Inter' }}>{children}</h2>
             <div className="w-16 h-px mx-auto mt-1" style={{backgroundColor: color}}></div>
         </div>
     );
@@ -30,10 +31,10 @@ const TemplateElegant: React.FC<{ data: ResumeData }> = ({ data }) => {
         .map(([skill, level]) => `${skill.charAt(0).toUpperCase() + skill.slice(1)} (${level})`);
 
     return (
-        <div className={`bg-gray-100 text-gray-800 ${lineHeightClasses[lineHeight || 'relaxed']}`} style={{ fontFamily: 'Helvetica, Arial, sans-serif', fontSize: `${fontSize}px` }}>
+        <div className={`bg-gray-100 text-gray-800 ${lineHeightClasses[lineHeight || 'relaxed']}`} style={{ fontFamily: fontBody || 'Inter', fontSize: `${fontSize}px` }}>
             <header className="bg-gray-700 text-white p-8 text-center">
-                <h1 className="text-4xl font-bold tracking-widest">{profile.name}</h1>
-                {title && <p className="text-xl mt-1 tracking-wider">{title}</p>}
+                <h1 className="text-4xl font-bold tracking-widest" style={{ fontFamily: fontTitle || 'Inter' }}>{profile.name}</h1>
+                {title && <p className="text-xl mt-1 tracking-wider" style={{ fontFamily: fontTitle || 'Inter' }}>{title}</p>}
                 <div className="flex justify-center items-center gap-6 mt-4 text-sm flex-wrap">
                     {profile.phone && <span className="flex items-center gap-2"><PhoneIcon/> {profile.phone}</span>}
                     {profile.email && <span className="flex items-center gap-2"><MailIcon/> {profile.email}</span>}
@@ -42,7 +43,7 @@ const TemplateElegant: React.FC<{ data: ResumeData }> = ({ data }) => {
             </header>
 
             <div className="p-8">
-                {summary && <section className="mb-6"><p className="text-center italic">{summary}</p></section>}
+                {summary && <section className="mb-6"><p className={`italic ${alignmentClasses[alignment || 'center']}`}>{summary}</p></section>}
 
                 {experiences.length > 0 && <section className="mb-6">
                     <SectionTitle>Experiência</SectionTitle>
@@ -50,9 +51,9 @@ const TemplateElegant: React.FC<{ data: ResumeData }> = ({ data }) => {
                         <div key={exp.id} className="mb-4 grid grid-cols-[100px_1fr] gap-4">
                             <p className="font-semibold text-gray-600">{exp.period}</p>
                             <div>
-                                <h3 className="font-bold text-lg">{exp.company}</h3>
+                                <h3 className="font-bold text-lg" style={{ fontFamily: fontTitle || 'Inter' }}>{exp.company}</h3>
                                 <p className="font-semibold">{exp.role}</p>
-                                <p className="mt-1 text-gray-700">{exp.description}</p>
+                                <p className={`mt-1 text-gray-700 ${alignmentClasses[alignment || 'left']}`}>{exp.description}</p>
                             </div>
                         </div>
                     ))}
@@ -64,7 +65,7 @@ const TemplateElegant: React.FC<{ data: ResumeData }> = ({ data }) => {
                         <div key={edu.id} className="mb-4 grid grid-cols-[100px_1fr] gap-4">
                             <p className="font-semibold text-gray-600">{edu.period}</p>
                             <div>
-                                <h3 className="font-bold text-lg">{edu.degree}</h3>
+                                <h3 className="font-bold text-lg" style={{ fontFamily: fontTitle || 'Inter' }}>{edu.degree}</h3>
                                 <p className="font-semibold">{edu.institution}</p>
                             </div>
                         </div>

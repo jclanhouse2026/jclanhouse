@@ -1,33 +1,20 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import type { Theme } from '../types';
-import { db, storage } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import type { Theme, MugOrder } from '../types';
+import { db } from '../lib/firebase';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, onSnapshot } from '../lib/localDb';
 import { useAuth } from './AuthContext';
 
 const THEME_BUCKET = 'themes';
 
-// Helper to convert data URL to Blob
-const dataURLtoBlob = (dataurl: string): Blob | null => {
-    const arr = dataurl.split(',');
-    if (arr.length < 2) return null;
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    if (!mimeMatch) return null;
-    const mime = mimeMatch[1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new Blob([u8arr], { type: mime });
-};
-
 interface ThemeContextType {
   themes: Theme[];
+  mugOrders: MugOrder[];
   addTheme: (theme: Omit<Theme, 'id'>) => Promise<void>;
   updateTheme: (theme: Theme) => Promise<void>;
   deleteTheme: (themeId: string) => Promise<void>;
+  addMugOrder: (order: Omit<MugOrder, 'id' | 'createdAt' | 'status'>) => Promise<string>;
+  updateMugOrderStatus: (orderId: string, status: 'pending' | 'completed') => Promise<void>;
+  deleteMugOrder: (orderId: string) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -35,43 +22,55 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [themes, setThemes] = useState<Theme[]>([]);
+  const [mugOrders, setMugOrders] = useState<MugOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchThemes = async () => {
-        setLoading(true);
-        try {
-            const querySnapshot = await getDocs(collection(db, 'themes'));
-            const data = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as Theme));
-            setThemes(data);
-        } catch (error) {
-            console.error("Erro ao buscar temas:", (error as Error).message);
-        } finally {
-            setLoading(false);
-        }
+    setLoading(true);
+    
+    // Listen for themes
+    const themesUnsubscribe = onSnapshot(
+      collection(db, 'themes'),
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Theme));
+        setThemes(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Erro ao buscar temas:", error);
+        setLoading(false);
+      }
+    );
+
+    // Listen for mug orders
+    const ordersUnsubscribe = onSnapshot(
+      query(collection(db, 'mug_orders'), orderBy('createdAt', 'desc')),
+      (snapshot) => {
+        const orders = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as MugOrder));
+        setMugOrders(orders);
+      }
+    );
+
+    return () => {
+      themesUnsubscribe();
+      ordersUnsubscribe();
     };
-    fetchThemes();
   }, []);
 
   const addTheme = async (themeData: Omit<Theme, 'id'>) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar tema.");
 
     const { imageUrl, ...restThemeData } = themeData;
-    let publicUrl = '';
+    let publicUrl = imageUrl;
 
-    if (imageUrl.startsWith('data:image')) {
-        // Salvar a imagem em base64 diretamente no Firestore para evitar problemas com o Storage
-        publicUrl = imageUrl;
-    } else {
-        publicUrl = imageUrl;
-    }
-    
     const newThemeData: any = { ...restThemeData, imageUrl: publicUrl, user_id: user.id };
     
-    // Remover campos undefined para evitar erro no Firestore
     Object.keys(newThemeData).forEach(key => {
       if (newThemeData[key] === undefined) {
         delete newThemeData[key];
@@ -93,16 +92,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const updateTheme = async (updatedTheme: Theme) => {
     const { id, imageUrl, ...restThemeData } = updatedTheme;
-    let publicUrl = imageUrl;
-
-    if (imageUrl.startsWith('data:image')) {
-        // Não precisamos mais deletar do Firebase Storage, pois estamos salvando em base64 no Firestore
-        publicUrl = imageUrl;
-    }
-
-    const updateData: any = { ...restThemeData, imageUrl: publicUrl };
+    const updateData: any = { ...restThemeData, imageUrl };
     
-    // Remover campos undefined para evitar erro no Firestore
     Object.keys(updateData).forEach(key => {
       if (updateData[key] === undefined) {
         delete updateData[key];
@@ -112,18 +103,44 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     await updateDoc(doc(db, 'themes', id), updateData);
     
     setThemes(prevThemes =>
-      prevThemes.map(t => (t.id === updatedTheme.id ? { ...updatedTheme, imageUrl: publicUrl } : t))
+      prevThemes.map(t => (t.id === updatedTheme.id ? { ...updatedTheme } : t))
     );
   };
 
   const deleteTheme = async (themeId: string) => {
-    // Não precisamos mais deletar do Firebase Storage, pois estamos salvando em base64 no Firestore
     await deleteDoc(doc(db, 'themes', themeId));
     setThemes(prevThemes => prevThemes.filter(t => t.id !== themeId));
   };
 
+  const addMugOrder = async (orderData: Omit<MugOrder, 'id' | 'createdAt' | 'status'>) => {
+    const newOrder = {
+      ...orderData,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    const docRef = await addDoc(collection(db, 'mug_orders'), newOrder);
+    return docRef.id;
+  };
+
+  const updateMugOrderStatus = async (orderId: string, status: 'pending' | 'completed') => {
+    await updateDoc(doc(db, 'mug_orders', orderId), { status });
+  };
+
+  const deleteMugOrder = async (orderId: string) => {
+    await deleteDoc(doc(db, 'mug_orders', orderId));
+  };
+
   return (
-    <ThemeContext.Provider value={{ themes, addTheme, updateTheme, deleteTheme }}>
+    <ThemeContext.Provider value={{ 
+      themes, 
+      mugOrders, 
+      addTheme, 
+      updateTheme, 
+      deleteTheme,
+      addMugOrder,
+      updateMugOrderStatus,
+      deleteMugOrder
+    }}>
       {!loading && children}
     </ThemeContext.Provider>
   );

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { SafeImage } from '../../components/SafeImage';
 import UsersIcon from '../../components/icons/UsersIcon';
 import KeyIcon from '../../components/icons/KeyIcon';
 import XCircleIcon from '../../components/icons/XCircleIcon';
@@ -211,8 +212,8 @@ const AdminUsersPage: React.FC = () => {
                                     <tr key={user.id} className="border-b border-slate-700/50">
                                         <td className="py-3 pr-3">
                                             <div className="flex items-center gap-3">
-                                                <img 
-                                                    src={user.avatarUrl || `https://ui-avatars.com/api/?name=${(user.name || 'User').replace(' ', '+')}&background=0891b2&color=fff`} 
+                                                <SafeImage 
+                                                    src={user.avatarUrl} 
                                                     alt={user.name} 
                                                     className="w-9 h-9 rounded-full object-cover"
                                                 />

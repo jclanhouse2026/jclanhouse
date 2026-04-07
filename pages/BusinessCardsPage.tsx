@@ -22,7 +22,7 @@ const BusinessCardsPage: React.FC = () => {
 
     useEffect(() => {
         if (!pricingLoading && cardsPricing.quantities.length > 0) {
-            setSelectedQuantity(cardsPricing.quantities[0]);
+            setSelectedQuantity(cardsPricing.quantities[0].quantity);
         }
         if (!pricingLoading && cardsPricing.papers.length > 0) {
             setSelectedPaper(cardsPricing.papers[0]);
@@ -33,9 +33,9 @@ const BusinessCardsPage: React.FC = () => {
         if (!selectedPaper || !cardsPricing?.quantities) return 0;
         let price = selectedPaper.basePrice || 0;
 
-        const quantityIndex = cardsPricing.quantities.indexOf(selectedQuantity);
-        if (quantityIndex > 0) {
-            price *= [1, 1.4, 2.2, 4.0][quantityIndex];
+        const qtyConfig = cardsPricing.quantities.find((q: any) => q.quantity === selectedQuantity);
+        if (qtyConfig) {
+            price *= qtyConfig.multiplier;
         }
 
         if (hasLamination) {
@@ -105,9 +105,9 @@ const BusinessCardsPage: React.FC = () => {
 
                             <OptionSection number={1} title="QUANTIDADE DE CARTÕES">
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    {cardsPricing?.quantities?.map((q: number) => (
-                                        <button key={q} onClick={() => setSelectedQuantity(q)} className={`py-3 rounded-lg text-center font-bold transition-colors ${selectedQuantity === q ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/90 text-slate-800 hover:bg-white'}`}>
-                                            {q}
+                                    {cardsPricing?.quantities?.map((q: any) => (
+                                        <button key={q.quantity} onClick={() => setSelectedQuantity(q.quantity)} className={`py-3 rounded-lg text-center font-bold transition-colors ${selectedQuantity === q.quantity ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/90 text-slate-800 hover:bg-white'}`}>
+                                            {q.quantity}
                                         </button>
                                     ))}
                                 </div>

@@ -4,6 +4,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
+import { useCustomers } from '../context/CustomerContext';
+import { useOrders } from '../context/OrderContext';
+import { useNotifications } from '../context/NotificationContext';
 import ShoppingCartIcon from '../components/icons/ShoppingCartIcon';
 import TrashIcon from '../components/icons/TrashIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
@@ -73,12 +77,69 @@ const QuickBuyModal: React.FC<{
 
 const CartPage: React.FC = () => {
     const { cartItems, updateQuantity, removeFromCart, clearCart } = useCart();
+    const { user } = useAuth();
+    const { customers } = useCustomers();
+    const { createOrder } = useOrders();
+    const { addNotification } = useNotifications();
     const navigate = useNavigate();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+    const [orderError, setOrderError] = useState('');
+
+    const currentCustomer = useMemo(() => {
+        return customers.find(c => c.userId === user?.id);
+    }, [customers, user]);
 
     const totalCartPrice = useMemo(() => {
         return cartItems.reduce((sum, item) => sum + item.totalPrice, 0);
     }, [cartItems]);
+
+    const handlePlaceOrder = async () => {
+        if (!user || !currentCustomer) return;
+        
+        if (!currentCustomer.address || !currentCustomer.address.street || !currentCustomer.address.number) {
+            setOrderError('Por favor, complete seu endereço no perfil antes de finalizar o pedido.');
+            setTimeout(() => navigate('/cliente/perfil'), 2000);
+            return;
+        }
+
+        setIsPlacingOrder(true);
+        setOrderError('');
+
+        try {
+            const orderItems = cartItems.map(item => ({
+                productId: item.productId,
+                name: item.name,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalPrice: item.totalPrice,
+                image: item.image,
+                customization: item.customization
+            }));
+
+            await createOrder(
+                orderItems,
+                currentCustomer.address,
+                totalCartPrice,
+                currentCustomer.fullName || user.username || 'Cliente',
+                currentCustomer.phone || ''
+            );
+
+            // Notify admin (mocked for now, but could be a real notification)
+            // await addNotification('admin_id', 'Novo Pedido Recebido', `Um novo pedido de ${currentCustomer.fullName} foi realizado.`, 'info');
+            
+            // Notify user
+            await addNotification(user.id, 'Pedido Realizado!', 'Seu pedido foi recebido e está aguardando processamento.', 'success');
+
+            clearCart();
+            navigate('/cliente/pedidos');
+        } catch (err) {
+            console.error("Erro ao realizar pedido:", err);
+            setOrderError('Ocorreu um erro ao processar seu pedido. Tente novamente.');
+        } finally {
+            setIsPlacingOrder(false);
+        }
+    };
     
     const handleQuickBuySubmit = (details: { name: string; phone: string; delivery: string }) => {
         const phoneNumber = '5594991083745';
@@ -171,12 +232,30 @@ const CartPage: React.FC = () => {
                                 <p>{formatCurrency(totalCartPrice)}</p>
                             </div>
                             <div className="mt-6 space-y-3">
-                                <button onClick={() => setIsModalOpen(true)} className="w-full bg-cyan-500 text-white font-bold py-3 rounded-md hover:bg-cyan-600 transition-colors">
-                                    Finalizar Compra Rápida
-                                </button>
-                                <Link to="/login" className="w-full block text-center bg-slate-700 text-white font-bold py-3 rounded-md hover:bg-slate-600 transition-colors">
-                                    Fazer Login ou Cadastrar
-                                </Link>
+                                {user ? (
+                                    <>
+                                        <button 
+                                            onClick={handlePlaceOrder} 
+                                            disabled={isPlacingOrder}
+                                            className="w-full bg-cyan-600 text-white font-bold py-3 rounded-md hover:bg-cyan-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        >
+                                            {isPlacingOrder ? (
+                                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            ) : null}
+                                            Finalizar Pedido
+                                        </button>
+                                        {orderError && <p className="text-xs text-red-400 text-center mt-2">{orderError}</p>}
+                                    </>
+                                ) : (
+                                    <>
+                                        <button onClick={() => setIsModalOpen(true)} className="w-full bg-cyan-500 text-white font-bold py-3 rounded-md hover:bg-cyan-600 transition-colors">
+                                            Finalizar Compra Rápida
+                                        </button>
+                                        <Link to="/login" className="w-full block text-center bg-slate-700 text-white font-bold py-3 rounded-md hover:bg-slate-600 transition-colors">
+                                            Fazer Login ou Cadastrar
+                                        </Link>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>

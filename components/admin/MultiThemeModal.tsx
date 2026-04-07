@@ -4,7 +4,7 @@ import UploadIcon from '../icons/UploadIcon';
 import TrashIcon from '../icons/TrashIcon';
 import type { Theme, ThemeCategory } from '../../types';
 import { optimizeImage, fileToBase64 } from '../../lib/imageUtils';
-import { generateThemeNameFromImage } from '../../services/geminiService';
+import { generateThemeNameFromImage, generateMugThemeInfoFromImage } from '../../services/geminiService';
 
 interface ThemeDraft {
   id: string;
@@ -20,9 +20,10 @@ interface MultiThemeModalProps {
   theme: Theme | null; // If editing a single existing theme
   onSave: (data: Omit<Theme, 'id'> & { id?: string }) => Promise<void>;
   onClose: () => void;
+  type?: 'escolar' | 'caneca' | 'caderneta';
 }
 
-const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClose }) => {
+const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClose, type = 'escolar' }) => {
   const [drafts, setDrafts] = useState<ThemeDraft[]>(
     theme ? [{
       id: theme.id,
@@ -75,15 +76,24 @@ const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClos
         // Update draft with optimized file and base64 preview
         setDrafts(prev => prev.map(d => d.id === draft.id ? { ...d, file: optimizedFile, previewUrl: base64 } : d));
 
-        // Generate name
-        const suggestedName = await generateThemeNameFromImage(base64);
-        
-        setDrafts(prev => prev.map(d => {
-          if (d.id === draft.id && !d.userEditedName) {
-            return { ...d, name: suggestedName, isGeneratingName: false };
-          }
-          return { ...d, isGeneratingName: false };
-        }));
+        // Generate info based on type
+        if (type === 'caneca') {
+          const suggestedInfo = await generateMugThemeInfoFromImage(base64);
+          setDrafts(prev => prev.map(d => {
+            if (d.id === draft.id && !d.userEditedName) {
+              return { ...d, name: suggestedInfo.name, category: suggestedInfo.category, isGeneratingName: false };
+            }
+            return { ...d, isGeneratingName: false };
+          }));
+        } else {
+          const suggestedName = await generateThemeNameFromImage(base64);
+          setDrafts(prev => prev.map(d => {
+            if (d.id === draft.id && !d.userEditedName) {
+              return { ...d, name: suggestedName, isGeneratingName: false };
+            }
+            return { ...d, isGeneratingName: false };
+          }));
+        }
 
       } catch (error) {
         console.error("Erro ao processar imagem:", error);
@@ -219,15 +229,26 @@ const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClos
                         </div>
                         <div>
                           <label className="text-xs text-slate-400 block mb-1">Categoria</label>
-                          <select 
-                            value={draft.category} 
-                            onChange={e => handleCategoryChange(draft.id, e.target.value as ThemeCategory)} 
-                            className="w-full p-2 bg-slate-800 rounded text-sm text-white border border-slate-600 focus:border-cyan-500 focus:outline-none"
-                          >
-                            <option value="MENINO">Menino</option>
-                            <option value="MENINA">Menina</option>
-                            <option value="UNISSEX">Unissex</option>
-                          </select>
+                          {type === 'caneca' ? (
+                            <input 
+                              type="text" 
+                              value={draft.category} 
+                              onChange={e => handleCategoryChange(draft.id, e.target.value)} 
+                              className="w-full p-2 bg-slate-800 rounded text-sm text-white border border-slate-600 focus:border-cyan-500 focus:outline-none" 
+                              placeholder="Ex: Dia das Mães"
+                              required 
+                            />
+                          ) : (
+                            <select 
+                              value={draft.category} 
+                              onChange={e => handleCategoryChange(draft.id, e.target.value as ThemeCategory)} 
+                              className="w-full p-2 bg-slate-800 rounded text-sm text-white border border-slate-600 focus:border-cyan-500 focus:outline-none"
+                            >
+                              <option value="MENINO">Menino</option>
+                              <option value="MENINA">Menina</option>
+                              <option value="UNISSEX">Unissex</option>
+                            </select>
+                          )}
                         </div>
                       </div>
                     </div>

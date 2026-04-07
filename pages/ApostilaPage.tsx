@@ -21,7 +21,8 @@ import {
   Info
 } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from '../lib/localDb';
+import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 import { useNavigate } from 'react-router-dom';
 
 const ApostilaPage: React.FC = () => {
@@ -133,6 +134,7 @@ const ApostilaPage: React.FC = () => {
       setTimeout(() => setOrderSuccess(false), 5000);
     } catch (error) {
       console.error('Error submitting order:', error);
+      handleFirestoreError(error, OperationType.CREATE, 'apostila_orders');
     } finally {
       setIsSubmitting(false);
     }

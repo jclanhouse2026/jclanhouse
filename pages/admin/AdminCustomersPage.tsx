@@ -13,6 +13,7 @@ import UploadIcon from '../../components/icons/UploadIcon';
 
 // Context and Types
 import { useCustomers } from '../../context/CustomerContext';
+import { SafeImage } from '../../components/SafeImage';
 import type { Customer, Address } from '../../types';
 
 const emptyAddress: Address = { cep: '', street: '', number: '', neighborhood: '', city: '', state: '' };
@@ -110,7 +111,7 @@ const CustomerModal: React.FC<{
                     <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
                         <div className="flex items-center gap-6">
                             <div className="relative">
-                                <img src={formData.avatarUrl || `https://ui-avatars.com/api/?name=${(formData.fullName || 'User').replace(' ', '+')}&background=0891b2&color=fff`} alt="Avatar" className="w-24 h-24 rounded-full border-2 border-cyan-400 object-cover" />
+                                <SafeImage src={formData.avatarUrl} alt="Avatar" className="w-24 h-24 rounded-full border-2 border-cyan-400 object-cover" fallbackType="avatar" />
                                 <button type="button" onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 bg-slate-600 p-1.5 rounded-full text-white hover:bg-slate-500"><UploadIcon className="w-4 h-4" /></button>
                                 <input type="file" ref={fileInputRef} onChange={handleAvatarUpload} className="hidden" accept="image/*"/>
                             </div>
@@ -238,7 +239,7 @@ const AdminCustomersPage: React.FC = () => {
                 <tr key={customer.id} className="border-b border-slate-700/50 hover:bg-slate-700/50">
                   <td className="py-3 pr-3">
                     <div className="flex items-center gap-3">
-                        <img src={customer.avatarUrl || `https://ui-avatars.com/api/?name=${(customer.fullName || 'User').replace(' ', '+')}&background=0891b2&color=fff`} alt={customer.fullName} className="w-9 h-9 rounded-full" />
+                        <SafeImage src={customer.avatarUrl} alt={customer.fullName} className="w-9 h-9 rounded-full" fallbackType="avatar" />
                         <span className="font-medium text-white">{customer.fullName}</span>
                     </div>
                   </td>

@@ -3,6 +3,7 @@ import React from 'react';
 import { useResume } from '../../../context/ResumeContext';
 import PlusIcon from '../../icons/PlusIcon';
 import TrashIcon from '../../icons/TrashIcon';
+import AutocompleteInput from '../AutocompleteInput';
 
 const educationLevels = {
     'Ensino Fundamental': { statuses: ['Incompleto', 'Cursando', 'Completo'], grades: Array.from({ length: 9 }, (_, i) => `${i + 1}º Ano`) },
@@ -17,9 +18,9 @@ const educationLevels = {
 type EducationLevel = keyof typeof educationLevels;
 
 const EducationItem: React.FC<{ edu: ReturnType<typeof useResume>['resumeData']['education'][0] }> = ({ edu }) => {
-    const { updateEducation, removeEducation } = useResume();
+    const { updateEducation, removeEducation, resumeData } = useResume();
 
-    const [level, status, grade] = edu.degree.split(' - ').map(s => s.trim());
+    const [level, status, grade] = (edu.degree || '').split(' - ').map(s => s.trim());
 
     const handleDegreeChange = (newLevel?: string, newStatus?: string, newGrade?: string) => {
         const finalLevel = newLevel || level || 'Ensino Médio';
@@ -41,7 +42,18 @@ const EducationItem: React.FC<{ edu: ReturnType<typeof useResume>['resumeData'][
                 <TrashIcon className="w-5 h-5" />
             </button>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField label="Instituição de Ensino" value={edu.institution} onChange={e => updateEducation(edu.id, 'institution', e.target.value)} />
+                <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1">Instituição de Ensino</label>
+                    <AutocompleteInput 
+                        type="school"
+                        value={edu.institution}
+                        onChange={val => updateEducation(edu.id, 'institution', val)}
+                        state={resumeData.profile.address.state}
+                        city={resumeData.profile.address.city}
+                        placeholder="Ex: Escola Estadual ABC"
+                        className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"
+                    />
+                </div>
                 <InputField label="Período" value={edu.period} onChange={e => updateEducation(edu.id, 'period', e.target.value)} placeholder="Ex: 2018 - 2020" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -93,18 +105,17 @@ const Step7_Education: React.FC = () => {
 const InputField: React.FC<{ label: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder?: string }> = ({ label, value, onChange, placeholder }) => (
     <div>
         <label className="text-xs font-semibold text-slate-400 block mb-1">{label}</label>
-        <input type="text" value={value} onChange={onChange} placeholder={placeholder} className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600"/>
+        <input type="text" value={value} onChange={onChange} placeholder={placeholder} className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white"/>
     </div>
 );
 
 const SelectField: React.FC<{ label: string; value: string; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; children: React.ReactNode }> = ({ label, value, onChange, children }) => (
     <div>
         <label className="text-xs font-semibold text-slate-400 block mb-1">{label}</label>
-        <select value={value} onChange={onChange} className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600">
+        <select value={value} onChange={onChange} className="w-full p-2 bg-slate-700 rounded-md text-sm border border-slate-600 text-white">
             {children}
         </select>
     </div>
 );
-
 
 export default Step7_Education;

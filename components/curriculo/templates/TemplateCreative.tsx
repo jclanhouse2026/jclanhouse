@@ -1,6 +1,7 @@
 
 import React from 'react';
 import type { ResumeData } from '../../../types';
+import { SafeImage } from '../../SafeImage';
 
 // Icons for the template
 const MailIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg>;
@@ -9,9 +10,10 @@ const LocationIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-
 
 
 const TemplateCreative: React.FC<{ data: ResumeData, sidebarPosition?: 'left' | 'right' }> = ({ data, sidebarPosition = 'left' }) => {
-    const { profile, summary, experiences, education, courses, informatics, languages, templateColor, fontSize, lineHeight, title } = data;
+    const { profile, summary, experiences, education, courses, informatics, languages, templateColor, fontSize, lineHeight, title, alignment, fontTitle, fontBody } = data;
     const color = templateColor || '#8b5cf6'; // purple-500
     const lineHeightClasses = { snug: 'leading-snug', relaxed: 'leading-relaxed', loose: 'leading-loose' };
+    const alignmentClasses = { left: 'text-left', center: 'text-center', right: 'text-right', justify: 'text-justify' };
 
     const formattedAddress = [
         profile.address.street,
@@ -21,13 +23,13 @@ const TemplateCreative: React.FC<{ data: ResumeData, sidebarPosition?: 'left' | 
     ].filter(Boolean).join(', ');
 
     const SectionTitle: React.FC<{children: React.ReactNode}> = ({children}) => (
-        <h2 className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color }}>
+        <h2 className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color, fontFamily: fontTitle || 'Inter' }}>
             {children}
         </h2>
     );
 
     const SidebarSectionTitle: React.FC<{children: React.ReactNode}> = ({children}) => (
-        <h3 className="font-bold border-b border-white/30 pb-1 mb-2">{children}</h3>
+        <h3 className="font-bold border-b border-white/30 pb-1 mb-2" style={{ fontFamily: fontTitle || 'Inter' }}>{children}</h3>
     );
     
     const informaticsSkills = Object.entries(informatics.skills)
@@ -42,18 +44,18 @@ const TemplateCreative: React.FC<{ data: ResumeData, sidebarPosition?: 'left' | 
 
     const MainContent = () => (
         <>
-            {summary && <section><SectionTitle>Resumo Profissional</SectionTitle><p>{summary}</p></section>}
+            {summary && <section><SectionTitle>Resumo Profissional</SectionTitle><p className={alignmentClasses[alignment || 'left']}>{summary}</p></section>}
             {experiences.length > 0 && <section>
                 <SectionTitle>Experiência Profissional</SectionTitle>
                 <div className="space-y-4">
                     {experiences.map(exp => (
                         <div key={exp.id}>
                             <div className="flex justify-between items-baseline">
-                                <h3 className="font-bold">{exp.role}</h3>
+                                <h3 className="font-bold" style={{ fontFamily: fontTitle || 'Inter' }}>{exp.role}</h3>
                                 <p className="text-xs font-medium text-gray-500">{exp.period}</p>
                             </div>
                             <p className="text-sm font-semibold">{exp.company}</p>
-                            <p className="mt-1 text-gray-600">{exp.description}</p>
+                            <p className={`mt-1 text-gray-600 ${alignmentClasses[alignment || 'left']}`}>{exp.description}</p>
                         </div>
                     ))}
                 </div>
@@ -63,7 +65,7 @@ const TemplateCreative: React.FC<{ data: ResumeData, sidebarPosition?: 'left' | 
                 <div className="space-y-3">
                     {education.map(edu => (
                         <div key={edu.id}>
-                            <p className="font-bold">{edu.degree}</p>
+                            <p className="font-bold" style={{ fontFamily: fontTitle || 'Inter' }}>{edu.degree}</p>
                             <p className="text-sm text-gray-700">{edu.institution}</p>
                             <p className="text-xs text-gray-500">{edu.period}</p>
                         </div>
@@ -76,7 +78,7 @@ const TemplateCreative: React.FC<{ data: ResumeData, sidebarPosition?: 'left' | 
     const SidebarContent = () => (
          <>
             {profile.photo && (
-                <img src={profile.photo} alt="Profile" className="w-28 h-28 rounded-full mx-auto mb-4 object-cover border-4 border-white/50" />
+                <SafeImage src={profile.photo} alt="Profile" className="w-28 h-28 rounded-full mx-auto mb-4 object-cover border-4 border-white/50" />
             )}
             
             <div className="mb-4">
@@ -129,7 +131,7 @@ const TemplateCreative: React.FC<{ data: ResumeData, sidebarPosition?: 'left' | 
     );
 
     return (
-        <div className={`text-gray-800 ${lineHeightClasses[lineHeight || 'relaxed']}`} style={{ fontFamily: 'Calibri, sans-serif', fontSize: `${fontSize}px` }}>
+        <div className={`text-gray-800 ${lineHeightClasses[lineHeight || 'relaxed']}`} style={{ fontFamily: fontBody || 'Inter', fontSize: `${fontSize}px` }}>
             <div className={`flex ${sidebarPosition === 'right' ? 'flex-row-reverse' : ''}`}>
                 {/* Sidebar */}
                 <div className="w-1/3 p-4 text-white" style={{ backgroundColor: color }}>
@@ -139,8 +141,8 @@ const TemplateCreative: React.FC<{ data: ResumeData, sidebarPosition?: 'left' | 
                 {/* Main content */}
                 <div className="w-2/3 p-6 space-y-4">
                     <header>
-                        <h1 className="text-4xl font-extrabold" style={{ color }}>{profile.name}</h1>
-                        {title && <h2 className="text-lg font-semibold">{title}</h2>}
+                        <h1 className="text-4xl font-extrabold" style={{ color, fontFamily: fontTitle || 'Inter' }}>{profile.name}</h1>
+                        {title && <h2 className="text-lg font-semibold" style={{ fontFamily: fontTitle || 'Inter' }}>{title}</h2>}
                     </header>
                     <MainContent />
                 </div>

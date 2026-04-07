@@ -9,9 +9,11 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, login, loginWithGoogle, logout } = useAuth();
+  const { user, login, loginWithGoogle, logout, resetPassword } = useAuth();
   
   const from = location.state?.from?.pathname || null;
 
@@ -44,6 +46,7 @@ const LoginPage: React.FC = () => {
   const handleLogin = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError('');
+    setSuccessMessage('');
     try {
       await login(identifier, password, rememberMe);
       // The useEffect above will handle redirection
@@ -58,6 +61,7 @@ const LoginPage: React.FC = () => {
 
   const handleGoogleLogin = async () => {
     setError('');
+    setSuccessMessage('');
     try {
       await loginWithGoogle();
       // The useEffect above will handle redirection
@@ -67,6 +71,36 @@ const LoginPage: React.FC = () => {
       } else {
         setError('Ocorreu um erro inesperado.');
       }
+    }
+  };
+
+  const handleResetPassword = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMessage('');
+    
+    if (!identifier) {
+      setError('Por favor, insira seu email no campo acima para redefinir a senha.');
+      return;
+    }
+
+    if (!identifier.includes('@')) {
+      setError('Por favor, insira um endereço de email válido para redefinir a senha.');
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      await resetPassword(identifier);
+      setSuccessMessage('Email de redefinição de senha enviado! Verifique sua caixa de entrada.');
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Ocorreu um erro ao tentar redefinir a senha.');
+      }
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -115,13 +149,26 @@ const LoginPage: React.FC = () => {
               <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-300">Lembrar-me</label>
             </div>
             <div className="text-sm">
-              <a href="#" className="font-medium text-cyan-400 hover:text-cyan-300">Esqueceu a senha?</a>
+              <button 
+                type="button" 
+                onClick={handleResetPassword}
+                disabled={isResetting}
+                className="font-medium text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
+              >
+                {isResetting ? 'Enviando...' : 'Esqueceu a senha?'}
+              </button>
             </div>
           </div>
 
           {error && (
             <div className="bg-red-500/20 p-3 rounded-md text-center">
                 <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="bg-green-500/20 p-3 rounded-md text-center">
+                <p className="text-sm text-green-400">{successMessage}</p>
             </div>
           )}
 

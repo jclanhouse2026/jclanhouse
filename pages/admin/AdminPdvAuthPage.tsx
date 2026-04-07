@@ -1,20 +1,82 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { SafeImage } from '../../components/SafeImage';
 import KeyIcon from '../../components/icons/KeyIcon';
 import CheckCircleIcon from '../../components/icons/CheckCircleIcon';
 import XCircleIcon from '../../components/icons/XCircleIcon';
 import ExclamationTriangleIcon from '../../components/icons/ExclamationTriangleIcon';
+import PlusIcon from '../../components/icons/PlusIcon';
 import { useAuth } from '../../context/AuthContext';
-import type { User, PdvAccessStatus } from '../../types';
+import type { User, PdvAccessStatus, UserRole } from '../../types';
 
 type Tab = 'pending' | 'authorized' | 'revoked';
 
+const InputField: React.FC<{ label: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; required?: boolean }> = ({ label, value, onChange, type = 'text', required }) => (
+    <div>
+        <label className="text-sm font-bold text-slate-300 block mb-2">{label}</label>
+        <input type={type} value={value} onChange={onChange} required={required} className="w-full p-3 bg-slate-700 rounded-md text-white border border-slate-600 focus:border-cyan-500" />
+    </div>
+);
+
+const CreateUserModal: React.FC<{
+    onClose: () => void;
+    onSave: (userData: any) => Promise<void>;
+}> = ({ onClose, onSave }) => {
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSaving(true);
+        try {
+            await onSave({ name, email, username, pass: password, role: 'moderator', pdvAccessStatus: 'authorized' });
+            onClose();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Erro ao criar usuário');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4">
+            <div className="bg-slate-800 rounded-xl shadow-2xl w-full max-w-md border border-slate-700">
+                <form onSubmit={handleSubmit}>
+                    <div className="flex justify-between items-center p-4 border-b border-slate-700">
+                        <h2 className="text-lg font-bold text-white">Criar Nova Conta PDV</h2>
+                        <button type="button" onClick={onClose}><XCircleIcon className="w-6 h-6 text-slate-400 hover:text-white" /></button>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <InputField label="Nome Completo" value={name} onChange={e => setName(e.target.value)} required />
+                        <InputField label="Nome de Usuário (login)" value={username} onChange={e => setUsername(e.target.value)} required />
+                        <InputField label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                        <InputField label="Senha" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+                        <div className="bg-cyan-500/10 p-3 rounded-md border border-cyan-500/20">
+                            <p className="text-xs text-cyan-400">Esta conta será criada automaticamente como <strong>Moderador</strong> e com <strong>Acesso ao PDV Autorizado</strong>.</p>
+                        </div>
+                    </div>
+                    <div className="p-4 bg-slate-900/50 border-t border-slate-700 text-right">
+                        <button type="button" onClick={onClose} className="bg-slate-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-700 mr-2">Cancelar</button>
+                        <button type="submit" disabled={isSaving} className="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 disabled:bg-slate-600">
+                            {isSaving ? 'Criando...' : 'Criar e Autorizar'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 const AdminPdvAuthPage: React.FC = () => {
-    const { adminGetAllUsers, authorizePdvAccess, revokePdvAccess } = useAuth();
+    const { adminGetAllUsers, authorizePdvAccess, revokePdvAccess, adminCreateUser } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState<Tab>('pending');
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const fetchUsers = useCallback(async () => {
         setLoading(true);
@@ -69,13 +131,18 @@ const AdminPdvAuthPage: React.FC = () => {
         fetchUsers(); // Refresh
     };
 
+    const handleCreateUser = async (userData: any) => {
+        await adminCreateUser(userData);
+        fetchUsers();
+    };
+
     const UserList: React.FC<{ userList: User[] }> = ({ userList }) => (
          <div className="space-y-3">
             {userList.map(user => (
                 <div key={user.id} className="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center border border-slate-700">
                     <div className="flex items-center gap-3">
-                        <img 
-                            src={user.avatarUrl || `https://ui-avatars.com/api/?name=${(user.name || 'User').replace(' ', '+')}&background=0891b2&color=fff`} 
+                        <SafeImage 
+                            src={user.avatarUrl} 
                             alt={user.name} 
                             className="w-10 h-10 rounded-full object-cover"
                         />
@@ -118,13 +185,23 @@ const AdminPdvAuthPage: React.FC = () => {
 
     return (
         <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3 mb-6">
-                <KeyIcon className="w-6 h-6" />
-                Autorizações de Acesso ao PDV
-            </h1>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+                    <KeyIcon className="w-6 h-6" />
+                    Autorizações de Acesso ao PDV
+                </h1>
+                <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shadow-lg"
+                >
+                    <PlusIcon className="w-5 h-5" />
+                    Criar Conta PDV
+                </button>
+            </div>
+
             <div className="bg-slate-800 rounded-xl shadow-lg border border-slate-700">
                 <div className="p-4 border-b border-slate-700">
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2 overflow-x-auto pb-2 sm:pb-0">
                         <TabButton tabId="pending" icon={ExclamationTriangleIcon} count={filteredUsers.pending.length}>Pendentes</TabButton>
                         <TabButton tabId="authorized" icon={CheckCircleIcon} count={filteredUsers.authorized.length}>Autorizados</TabButton>
                         <TabButton tabId="revoked" icon={XCircleIcon} count={filteredUsers.revoked.length}>Revogados</TabButton>
@@ -144,6 +221,13 @@ const AdminPdvAuthPage: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {isModalOpen && (
+                <CreateUserModal 
+                    onClose={() => setIsModalOpen(false)} 
+                    onSave={handleCreateUser} 
+                />
+            )}
         </div>
     );
 };

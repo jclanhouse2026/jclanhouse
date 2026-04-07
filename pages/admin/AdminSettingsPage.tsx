@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { SafeImage } from '../../components/SafeImage';
 import type { User } from '../../types';
 import UploadIcon from '../../components/icons/UploadIcon';
 
@@ -150,7 +151,7 @@ const AdminSettingsPage: React.FC = () => {
 
               <div className="flex items-center gap-6">
                  <div className="relative">
-                    <img src={avatarUrl} alt="Avatar" className="w-24 h-24 rounded-full border-2 border-cyan-400 object-cover" />
+                    <SafeImage src={avatarUrl} alt="Avatar" className="w-24 h-24 rounded-full border-2 border-cyan-400 object-cover" fallbackType="avatar" />
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}

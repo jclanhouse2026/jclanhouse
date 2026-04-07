@@ -16,6 +16,11 @@ import BriefcaseIcon from './icons/BriefcaseIcon';
 import DocumentTextIcon from './icons/DocumentTextIcon';
 import TagIcon from './icons/TagIcon';
 import InformationCircleIcon from './icons/InformationCircleIcon';
+import CreditCardIcon from './icons/CreditCardIcon';
+import PhotographIcon from './icons/PhotographIcon';
+import ImageIcon from './icons/ImageIcon';
+import BookOpenIcon from './icons/BookIcon'; // Using BookIcon as fallback for BookOpen if needed or just use BookIcon
+import DocumentIcon from './icons/DocumentIcon';
 
 export const IconMap: { [key: string]: React.ElementType } = {
     PencilIcon,
@@ -33,6 +38,10 @@ export const IconMap: { [key: string]: React.ElementType } = {
     DocumentTextIcon,
     TagIcon,
     InformationCircleIcon,
+    CreditCardIcon,
+    PhotographIcon,
+    ImageIcon,
+    DocumentIcon,
 };
 
 export const iconOptions = Object.keys(IconMap).map(key => ({ value: key, label: key.replace('Icon', '') }));

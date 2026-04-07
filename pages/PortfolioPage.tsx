@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { usePortfolio } from '../context/PortfolioContext';
@@ -52,6 +53,11 @@ const PortfolioPage: React.FC = () => {
                               <button onClick={() => setActiveFilter({type: 'all', id: null})} className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${getFilterClass('all', null)}`}>
                                   Mostrar Todos
                               </button>
+                          </li>
+                          <li>
+                              <Link to="/temas-canecas" className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-400 hover:text-white hover:bg-slate-700/50 block">
+                                  Temas de Caneca
+                              </Link>
                           </li>
                           {categories.map(category => (
                               <li key={category.id}>

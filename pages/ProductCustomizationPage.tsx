@@ -104,6 +104,14 @@ const ProductCustomizationPage: React.FC = () => {
             <Header />
             <main className="flex-grow">
                 <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
+                    <div className="mb-6">
+                        <button onClick={() => navigate(-1)} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center gap-2 w-fit">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                            </svg>
+                            Voltar
+                        </button>
+                    </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                         {/* Left Column: Preview & Price */}
                         <div className="space-y-8 lg:sticky top-28 h-max">
@@ -183,13 +191,33 @@ const ProductCustomizationPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div>
+                            <div className="space-y-3">
                                 <button 
                                     onClick={handleAddToCart}
                                     className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg flex items-center justify-center gap-3 transition-colors"
                                 >
                                     <ShoppingCartIcon className="w-5 h-5" />
                                     CONFIRMAR E CARRINHO
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        if (navigator.share) {
+                                            navigator.share({
+                                                title: theme.name,
+                                                text: 'Personalize esta caderneta de vacina!',
+                                                url: window.location.href,
+                                            }).catch(console.error);
+                                        } else {
+                                            navigator.clipboard.writeText(window.location.href);
+                                            alert('Link copiado para a área de transferência!');
+                                        }
+                                    }}
+                                    className="w-full block text-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+                                    </svg>
+                                    Compartilhar Tema
                                 </button>
                             </div>
                         </div>

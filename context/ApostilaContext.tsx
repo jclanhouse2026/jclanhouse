@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, doc, onSnapshot, query, getDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, getDoc } from '../lib/localDb';
 
 interface ApostilaSettings {
   id: string;
@@ -44,6 +44,15 @@ const defaultSettings: Omit<ApostilaSettings, 'id'> = {
   min_delivery_days: 1
 };
 
+const defaultColors: ApostilaColor[] = [
+    { id: 'c1', name: 'Azul', hex: '#3b82f6', active: true },
+    { id: 'c2', name: 'Verde', hex: '#22c55e', active: true },
+    { id: 'c3', name: 'Rosa', hex: '#ec4899', active: true },
+    { id: 'c4', name: 'Amarelo', hex: '#eab308', active: true },
+    { id: 'c5', name: 'Preto', hex: '#000000', active: true },
+    { id: 'c6', name: 'Transparente', hex: '#ffffff', active: true },
+];
+
 export const ApostilaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<ApostilaSettings | null>(null);
   const [colors, setColors] = useState<ApostilaColor[]>([]);
@@ -60,8 +69,12 @@ export const ApostilaProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
 
     const unsubscribeColors = onSnapshot(collection(db, 'apostila_colors'), (snapshot) => {
-      const colorsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ApostilaColor));
-      setColors(colorsData);
+      if (snapshot.empty) {
+        setColors(defaultColors);
+      } else {
+        const colorsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ApostilaColor));
+        setColors(colorsData);
+      }
     });
 
     return () => {

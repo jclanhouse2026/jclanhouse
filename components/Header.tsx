@@ -38,6 +38,7 @@ const Header: React.FC = () => {
               <Link to="/" className="text-gray-300 hover:bg-slate-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Home</Link>
               <Link to="/servicos" className="text-gray-300 hover:bg-slate-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Serviços</Link>
               <Link to="/portfolio" className="text-gray-300 hover:bg-slate-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Produtos</Link>
+              <Link to="/temas-canecas" className="text-gray-300 hover:bg-slate-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Temas de Caneca</Link>
               <Link to="/curriculo" className="text-gray-300 hover:bg-slate-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Currículo</Link>
               
               {user ? (
@@ -106,6 +107,7 @@ const Header: React.FC = () => {
             <Link to="/" onClick={closeMenu} className="text-gray-300 hover:bg-slate-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Home</Link>
             <Link to="/servicos" onClick={closeMenu} className="text-gray-300 hover:bg-slate-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Serviços</Link>
             <Link to="/portfolio" onClick={closeMenu} className="text-gray-300 hover:bg-slate-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Produtos</Link>
+            <Link to="/temas-canecas" onClick={closeMenu} className="text-gray-300 hover:bg-slate-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Temas de Caneca</Link>
             <Link to="/curriculo" onClick={closeMenu} className="text-gray-300 hover:bg-slate-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Currículo</Link>
             
             {user ? (

@@ -18,19 +18,19 @@ const SmartPrintingPage: React.FC = () => {
     const { impressao: printPricing } = pricing;
     
     const [selectedTech, setSelectedTech] = useState<Tech>('laser');
-    const [selectedPaperFormat, setSelectedPaperFormat] = useState(printPricing.formatModifiers[1]?.id || 'A4');
+    const [selectedPaperFormat, setSelectedPaperFormat] = useState(printPricing.formatModifiers[0]?.id || 'a4');
     const [selectedColorMode, setSelectedColorMode] = useState<ColorMode>('bw');
-    const [selectedMedia, setSelectedMedia] = useState(printPricing.mediaModifiers[0]?.id || 'sulfite75g');
+    const [selectedMedia, setSelectedMedia] = useState(printPricing.mediaModifiers[0]?.id || 'comum');
     const [pageVolume, setPageVolume] = useState<number>(1);
     
     useEffect(() => {
         if (!pricingLoading) {
             if (selectedTech === 'laser') {
-                setSelectedPaperFormat('A4');
-                setSelectedMedia('sulfite75g');
+                setSelectedPaperFormat('a4');
+                setSelectedMedia('comum');
             } else {
-                setSelectedPaperFormat(printPricing.formatModifiers[1]?.id || 'A4');
-                setSelectedMedia(printPricing.mediaModifiers[0]?.id || 'sulfite75g');
+                setSelectedPaperFormat(printPricing.formatModifiers[0]?.id || 'a4');
+                setSelectedMedia(printPricing.mediaModifiers[0]?.id || 'comum');
             }
         }
     }, [selectedTech, pricingLoading, printPricing]);
@@ -43,7 +43,7 @@ const SmartPrintingPage: React.FC = () => {
 
         if (!format || !media) return { unitPrice: 0, totalPrice: 0 };
 
-        let price = printPricing.basePrice * format.modifier * media.modifier;
+        let price = printPricing.basePrice * format.multiplier + media.price;
         
         if (selectedColorMode === 'bw') {
             price *= printPricing.techModifiers[selectedTech].base;
@@ -179,7 +179,7 @@ const SmartPrintingPage: React.FC = () => {
                             <OptionSection number={4} title="ESCOLHA A MÍDIA / GRAMATURA">
                                 {selectedTech === 'laser' ? (
                                     <button disabled className="w-full p-4 rounded-lg border-2 text-left flex justify-between items-center bg-indigo-600 border-indigo-500 cursor-not-allowed">
-                                        <span className="font-semibold">SULFITE 75G</span>
+                                        <span className="font-semibold">PAPEL COMUM 75G</span>
                                         <span className="text-xs font-medium text-slate-300">PADRÃO</span>
                                     </button>
                                 ) : (

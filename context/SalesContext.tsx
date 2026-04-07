@@ -1,7 +1,8 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, doc, deleteDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, deleteDoc, query, orderBy, onSnapshot, where } from '../lib/localDb';
+import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 export type SaleStatus = 'orcamento' | 'em_aberto' | 'finalizado' | 'cancelado';
 
@@ -46,7 +47,10 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return;
     }
 
-    const q = query(collection(db, 'sales'), orderBy('date_time', 'desc'));
+    const salesRef = collection(db, 'sales');
+    const q = user.role === 'admin'
+        ? query(salesRef, orderBy('date_time', 'desc'))
+        : query(salesRef, where('user_id', '==', user.id), orderBy('date_time', 'desc'));
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const formattedData = querySnapshot.docs.map(doc => {
@@ -61,13 +65,17 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 items: data.items,
                 amountPaid: data.amount_paid,
                 paymentMethod: data.payment_method,
-                status: data.status || 'finalizado', // Default para antigas
+                status: data.status || 'finalizado',
             };
         });
         setSales(formattedData);
     }, (error) => {
-        console.error("Exceção ao buscar histórico de vendas:", error.message);
-        setSales([]);
+        try {
+            handleFirestoreError(error, OperationType.LIST, 'sales');
+        } catch (e) {
+            console.error("Erro ao buscar histórico de vendas:", (e as Error).message);
+            setSales([]);
+        }
     });
 
     return () => unsubscribe();
@@ -94,20 +102,24 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       status: saleData.status
     };
     
-    const docRef = await addDoc(collection(db, 'sales'), newSaleData);
+    try {
+        const docRef = await addDoc(collection(db, 'sales'), newSaleData);
 
-    return {
-      id: docRef.id,
-      userId: newSaleData.user_id,
-      customerName: newSaleData.customer_name,
-      phone: newSaleData.phone,
-      total: newSaleData.total,
-      dateTime: new Date(newSaleData.date_time),
-      items: newSaleData.items,
-      amountPaid: newSaleData.amount_paid,
-      paymentMethod: newSaleData.payment_method,
-      status: newSaleData.status as SaleStatus
-    };
+        return {
+          id: docRef.id,
+          userId: newSaleData.user_id,
+          customerName: newSaleData.customer_name,
+          phone: newSaleData.phone,
+          total: newSaleData.total,
+          dateTime: new Date(newSaleData.date_time),
+          items: newSaleData.items,
+          amountPaid: newSaleData.amount_paid,
+          paymentMethod: newSaleData.payment_method,
+          status: newSaleData.status as SaleStatus
+        };
+    } catch (error) {
+        return handleFirestoreError(error, OperationType.CREATE, 'sales');
+    }
   };
 
   const updateSale = async (id: string, saleData: Partial<Sale>) => {
@@ -120,11 +132,19 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (saleData.paymentMethod !== undefined) updateData.payment_method = saleData.paymentMethod;
       if (saleData.status !== undefined) updateData.status = saleData.status;
 
-      await updateDoc(doc(db, 'sales', id), updateData);
+      try {
+          await updateDoc(doc(db, 'sales', id), updateData);
+      } catch (error) {
+          handleFirestoreError(error, OperationType.UPDATE, `sales/${id}`);
+      }
   };
 
   const deleteSale = async (id: string) => {
-      await deleteDoc(doc(db, 'sales', id));
+      try {
+          await deleteDoc(doc(db, 'sales', id));
+      } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `sales/${id}`);
+      }
   };
 
   return (

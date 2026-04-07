@@ -1,6 +1,9 @@
 
 import React, { useState, useRef } from 'react';
 import { useResume } from '../../../context/ResumeContext';
+import { useCustomers } from '../../../context/CustomerContext';
+import { useAuth } from '../../../context/AuthContext';
+import MapPinIcon from '../../icons/MapPinIcon';
 
 const InputField: React.FC<{ label: string; name: any; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; disabled?: boolean; readOnly?: boolean; maxLength?: number; onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; refProp?: React.Ref<HTMLInputElement> }> = ({ label, name, value, onChange, type = 'text', placeholder, disabled, readOnly, maxLength, onBlur, refProp }) => (
     <div>
@@ -23,9 +26,17 @@ const InputField: React.FC<{ label: string; name: any; value: string; onChange: 
 
 
 const Step3_Location: React.FC = () => {
-    const { resumeData, updateProfile, updateAddress } = useResume();
+    const { resumeData, updateProfile, updateAddress, importProfileData } = useResume();
+    const { customersForCurrentUser } = useCustomers();
+    const { user } = useAuth();
     const [loadingCep, setLoadingCep] = useState(false);
     const numberInputRef = useRef<HTMLInputElement>(null);
+
+    const handleImport = () => {
+        if (customersForCurrentUser.length > 0) {
+            importProfileData(customersForCurrentUser[0]);
+        }
+    };
 
     const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value.replace(/\D/g, '').slice(0, 8);
@@ -60,6 +71,26 @@ const Step3_Location: React.FC = () => {
                 <h2 className="text-2xl font-bold text-white">Onde você mora?</h2>
                 <p className="text-slate-400 mt-1">Essas informações ajudam a personalizar seu currículo.</p>
             </div>
+
+            {user && customersForCurrentUser.length > 0 && (
+                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-cyan-500/20 rounded-lg">
+                            <MapPinIcon className="w-5 h-5 text-cyan-400" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-white">Usar endereço do meu perfil?</p>
+                            <p className="text-xs text-slate-400">Puxar CEP, rua, bairro e cidade automaticamente.</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={handleImport}
+                        className="text-xs font-bold bg-cyan-600 text-white py-2 px-4 rounded-lg hover:bg-cyan-700 transition-colors"
+                    >
+                        Importar Endereço
+                    </button>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-1 relative">

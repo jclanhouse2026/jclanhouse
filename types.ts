@@ -17,11 +17,49 @@ export interface User {
   isPremium: boolean;
   hasBilling: boolean;
   avatarUrl?: string;
+  photoURL?: string;
   // FIX: Added optional password property to satisfy type-checking for admin user update/create operations.
   password?: string;
   // FIX: Add pdvAccessStatus property to User interface
   pdvAccessStatus?: PdvAccessStatus;
   status?: 'active' | 'inactive';
+}
+
+// --- Order System ---
+export interface OrderItem {
+  productId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  image: string;
+  customization?: {
+    text?: string;
+    image?: string;
+  };
+}
+
+export interface Order {
+  id: string;
+  userId: string;
+  customerName: string;
+  customerPhone: string;
+  address: Address;
+  items: OrderItem[];
+  totalAmount: number;
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'completed';
+  createdAt: string;
+}
+
+// --- Notification System ---
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  read: boolean;
+  createdAt: string;
 }
 
 // --- Shared Interfaces ---
@@ -32,6 +70,7 @@ export interface Address {
     neighborhood: string;
     city: string;
     state: string;
+    referencePoint?: string;
 }
 
 // --- Customer Interface ---
@@ -45,6 +84,7 @@ export interface Customer {
   address?: Address;
   dob?: string; // Date of birth as string 'YYYY-MM-DD'
   avatarUrl?: string;
+  photoURL?: string;
   status: 'Ativo' | 'Inativo';
   signupDate: string;
 }
@@ -81,14 +121,14 @@ export interface Category {
 }
 
 // Interfaces para Temas
-export type ThemeCategory = 'MENINO' | 'MENINA' | 'UNISSEX';
+export type ThemeCategory = 'MENINO' | 'MENINA' | 'UNISSEX' | string;
 
 export interface Theme {
   id: string;
   name: string;
   category: ThemeCategory;
   imageUrl: string;
-  type?: 'caderneta' | 'escolar';
+  type?: 'caderneta' | 'escolar' | 'caneca';
 }
 
 
@@ -154,6 +194,14 @@ export interface HomeSettings {
       phone: string;
       whatsapp: string;
     };
+  };
+  mugThemesBanner?: {
+    enabled: boolean;
+    title: string;
+    subtitle: string;
+    buttonText: string;
+    link: string;
+    fullClickable: boolean;
   };
 }
 
@@ -222,7 +270,7 @@ export interface ResumeData {
     email: string;
     phone: string;
     cnh: {
-        category: 'Não possui' | 'A' | 'B' | 'AB' | 'C' | 'D' | 'E';
+        category: 'Não possui' | 'A' | 'B' | 'AB' | 'C' | 'D' | 'E' | 'AC' | 'AD' | 'AE';
         ear: boolean;
     };
   };
@@ -236,6 +284,18 @@ export interface ResumeData {
   templateColor: string;
   fontSize: number;
   lineHeight: 'snug' | 'relaxed' | 'loose';
+  alignment: 'left' | 'center' | 'right' | 'justify';
+  fontTitle: string;
+  fontBody: string;
+}
+
+export interface Suggestion {
+  id: string;
+  type: 'role' | 'school' | 'course' | 'company';
+  text: string;
+  state?: string;
+  city?: string;
+  count: number;
 }
 
 // --- Novas Interfaces para Configuração do Currículo ---
@@ -286,4 +346,16 @@ export interface Printer {
   connectionType: 'usb' | 'network' | 'serial' | 'bluetooth';
   address: string; // Ex: COM3, 192.168.1.100, \\PC\EPSON
   isDefault: boolean;
+}
+
+export interface MugOrder {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  orderNumber: string;
+  themeId: string;
+  themeName: string;
+  themeImageUrl: string;
+  status: 'pending' | 'completed';
+  createdAt: string;
 }

@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { HomeSettings } from '../types';
 import { db } from '../lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from '../lib/localDb';
 
 const initialSettings: HomeSettings = {
   hero: { 
@@ -33,6 +33,14 @@ const initialSettings: HomeSettings = {
       { id: '3', text: "Encadernação", link: "/apostila" }
     ],
     contact: { email: "contato@jclanhouse.com", phone: "(00) 0000-0000", whatsapp: "5500000000000" }
+  },
+  mugThemesBanner: {
+    enabled: true,
+    title: "Temas de Canecas Personalizadas",
+    subtitle: "Escolha entre centenas de estampas exclusivas para sua caneca. Temos temas para todas as ocasiões: Dia das Mães, Pais, Infantil, Geek e muito mais!",
+    buttonText: "VER TODOS OS TEMAS",
+    link: "/temas-canecas",
+    fullClickable: true
   }
 };
 
@@ -76,6 +84,10 @@ export const HomeSettingsProvider: React.FC<{ children: ReactNode }> = ({ childr
                         contact: { ...initialSettings.footer.contact, ...(fetched.footer?.contact || {}) },
                         siteLinks: fetched.footer?.siteLinks || initialSettings.footer.siteLinks,
                         serviceLinks: fetched.footer?.serviceLinks || initialSettings.footer.serviceLinks,
+                    },
+                    mugThemesBanner: {
+                        ...initialSettings.mugThemesBanner!,
+                        ...(fetched.mugThemesBanner || {})
                     }
                 };
                 setSettings(mergedSettings);

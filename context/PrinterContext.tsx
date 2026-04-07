@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, ReactNode, useEffect, useMe
 import type { Printer } from '../types';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, writeBatch } from '../lib/localDb';
 
 interface PrinterContextType {
   printers: Printer[];
