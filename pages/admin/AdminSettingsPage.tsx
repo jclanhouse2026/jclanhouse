@@ -147,8 +147,8 @@ const AdminSettingsPage: React.FC = () => {
               </div>
               <hr className="border-slate-700" />
               <div>
-                <label htmlFor="aiKey" className="text-sm font-bold text-slate-300 block mb-2">Chave de API do Gemini (IA)</label>
-                <input type="password" id="aiKey" value={aiKey} onChange={(e) => setAiKey(e.target.value)} className="w-full p-3 bg-slate-700 rounded-md text-white border border-slate-600 focus:border-cyan-500 focus:ring-cyan-500 focus:outline-none" placeholder="Digite sua chave de API do Gemini" />
+                <label htmlFor="aiKey" className="text-sm font-bold text-slate-300 block mb-2">Chave de API do Groq (IA)</label>
+                <input type="password" id="aiKey" value={aiKey} onChange={(e) => setAiKey(e.target.value)} className="w-full p-3 bg-slate-700 rounded-md text-white border border-slate-600 focus:border-cyan-500 focus:ring-cyan-500 focus:outline-none" placeholder="Digite sua chave de API do Groq" />
                 <p className="text-xs text-slate-400 mt-1">Necessário para que as funções de IA funcionem após a publicação do site.</p>
               </div>
             </div>
