@@ -7,7 +7,11 @@ export const setCustomApiKey = (key: string) => {
 };
 
 const getAiClient = () => {
-  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
+  const apiKey = customApiKey || 
+                 import.meta.env.VITE_AI_KEY || 
+                 import.meta.env.VITE_GEMINI_API_KEY || 
+                 process.env.GEMINI_API_KEY;
+                 
   if (!apiKey) {
     throw new Error("Chave de API do Gemini não encontrada. Verifique as configurações do projeto.");
   }
