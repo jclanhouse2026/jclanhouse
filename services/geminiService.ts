@@ -8,7 +8,10 @@ export const setCustomApiKey = (key: string) => {
 
 const getAiClient = () => {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
-  return new GoogleGenAI({ apiKey: apiKey || '' });
+  if (!apiKey) {
+    throw new Error("Chave de API do Gemini não encontrada. Verifique as configurações do projeto.");
+  }
+  return new GoogleGenAI({ apiKey });
 };
 
 const DEFAULT_MODEL = "gemini-3-flash-preview";

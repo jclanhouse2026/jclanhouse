@@ -35,8 +35,13 @@ const AIAssistant: React.FC = () => {
         "Você é um assistente prestativo da JC Lan House e Gráfica. Você ajuda clientes com dúvidas sobre currículos, impressões, convites, temas de cadernos e serviços gerais de Lan House. Seja cordial, profissional e direto."
       );
       setMessages(prev => [...prev, { role: 'ai', text: response || "Desculpe, não consegui processar sua solicitação." }]);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'ai', text: "Ocorreu um erro ao falar com a IA. Verifique sua conexão." }]);
+    } catch (error: any) {
+      const errorMessage = error.message?.includes("Chave de API") 
+        ? "Erro de configuração: A chave da IA não foi encontrada. Por favor, configure a VITE_AI_KEY nas configurações."
+        : "Ocorreu um erro ao falar com a IA. Verifique sua conexão ou tente novamente mais tarde.";
+      
+      setMessages(prev => [...prev, { role: 'ai', text: errorMessage }]);
+      console.error("AI Error:", error);
     } finally {
       setIsLoading(false);
     }
