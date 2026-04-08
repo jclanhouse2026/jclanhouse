@@ -1,5 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
 import { useAuth } from './AuthContext';
+import { db } from '../lib/firebase';
+import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where } from 'firebase/firestore';
 import type { Customer, Address } from '../types';
 
 type CustomerData = Omit<Customer, 'id' | 'userId' | 'signupDate' | 'status'>;
@@ -16,19 +18,7 @@ interface CustomerContextType {
 
 const CustomerContext = createContext<CustomerContextType | undefined>(undefined);
 
-// Helper for local storage customers
-const getLocalCustomers = (): Customer[] => {
-    try {
-        const data = localStorage.getItem('app_customers');
-        return data ? JSON.parse(data) : [];
-    } catch {
-        return [];
-    }
-};
 
-const saveLocalCustomers = (customers: Customer[]) => {
-    localStorage.setItem('app_customers', JSON.stringify(customers));
-};
 
 export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -44,15 +34,22 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     setLoading(true);
     
-    const allCustomers = getLocalCustomers();
+    const customersRef = collection(db, 'customers');
+    const q = user.role === 'admin' ? query(customersRef) : query(customersRef, where('userId', '==', user.id));
     
-    if (user.role === 'admin') {
-        setCustomers(allCustomers);
-    } else {
-        setCustomers(allCustomers.filter(c => c.userId === user.id));
-    }
-    
-    setLoading(false);
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const loadedCustomers: Customer[] = [];
+        querySnapshot.forEach((doc) => {
+            loadedCustomers.push({ id: doc.id, ...doc.data() } as Customer);
+        });
+        setCustomers(loadedCustomers);
+        setLoading(false);
+    }, (error) => {
+        console.error("Error fetching customers:", error);
+        setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   const customersForCurrentUser = useMemo(() => {
@@ -63,60 +60,34 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
   const addCustomer = async (customerData: CustomerData): Promise<Customer> => {
     if (!user) throw new Error("User must be logged in to add a customer");
 
+    const newCustomerRef = doc(collection(db, 'customers'));
     const newCustomer: Customer = {
         ...customerData,
-        id: Date.now().toString(),
+        id: newCustomerRef.id,
         userId: user.id,
         status: 'Ativo',
         signupDate: new Date().toISOString()
     };
 
-    const allCustomers = getLocalCustomers();
-    allCustomers.push(newCustomer);
-    saveLocalCustomers(allCustomers);
-    
-    if (user.role === 'admin') {
-        setCustomers(allCustomers);
-    } else {
-        setCustomers(allCustomers.filter(c => c.userId === user.id));
-    }
-
+    await setDoc(newCustomerRef, newCustomer);
     return newCustomer;
   };
 
   const updateCustomer = async (updatedCustomer: Customer): Promise<void> => {
-    const allCustomers = getLocalCustomers();
-    const index = allCustomers.findIndex(c => c.id === updatedCustomer.id);
-    
-    if (index !== -1) {
-        allCustomers[index] = updatedCustomer;
-        saveLocalCustomers(allCustomers);
-        
-        if (user?.role === 'admin') {
-            setCustomers(allCustomers);
-        } else if (user) {
-            setCustomers(allCustomers.filter(c => c.userId === user.id));
-        }
-    }
+    const customerRef = doc(db, 'customers', updatedCustomer.id);
+    await updateDoc(customerRef, { ...updatedCustomer });
   };
 
   const updateCurrentCustomer = async (userId: string, updates: Partial<Customer>): Promise<void> => {
-    const allCustomers = getLocalCustomers();
-    const index = allCustomers.findIndex(c => c.userId === userId);
-    
-    if (index !== -1) {
-        allCustomers[index] = { ...allCustomers[index], ...updates };
-        saveLocalCustomers(allCustomers);
-        
-        if (user?.role === 'admin') {
-            setCustomers(allCustomers);
-        } else if (user) {
-            setCustomers(allCustomers.filter(c => c.userId === user.id));
-        }
+    const customer = customers.find(c => c.userId === userId);
+    if (customer) {
+        const customerRef = doc(db, 'customers', customer.id);
+        await updateDoc(customerRef, updates);
     } else {
         // If customer profile doesn't exist yet, create it
+        const newCustomerRef = doc(collection(db, 'customers'));
         const newCustomer: Customer = {
-            id: Date.now().toString(),
+            id: newCustomerRef.id,
             userId: userId,
             fullName: updates.fullName || '',
             email: updates.email || '',
@@ -130,27 +101,12 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
             signupDate: new Date().toISOString(),
             ...updates
         };
-        allCustomers.push(newCustomer);
-        saveLocalCustomers(allCustomers);
-        
-        if (user?.role === 'admin') {
-            setCustomers(allCustomers);
-        } else if (user) {
-            setCustomers(allCustomers.filter(c => c.userId === user.id));
-        }
+        await setDoc(newCustomerRef, newCustomer);
     }
   };
 
   const deleteCustomer = async (customerId: string): Promise<void> => {
-    let allCustomers = getLocalCustomers();
-    allCustomers = allCustomers.filter(c => c.id !== customerId);
-    saveLocalCustomers(allCustomers);
-    
-    if (user?.role === 'admin') {
-        setCustomers(allCustomers);
-    } else if (user) {
-        setCustomers(allCustomers.filter(c => c.userId === user.id));
-    }
+    await deleteDoc(doc(db, 'customers', customerId));
   };
 
   return (

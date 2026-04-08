@@ -1,4 +1,4 @@
-const getApiKey = () => import.meta.env.VITE_AI_KEY;
+const getApiKey = () => import.meta.env.VITE_AI_KEY || import.meta.env.VITE_GEMINI_API_KEY;
 const getApiUrl = (model = 'gemini-1.5-flash') => {
   const baseUrl = import.meta.env.VITE_API_URL || 'https://generativelanguage.googleapis.com/v1/models';
   return `${baseUrl}/${model}:generateContent?key=${getApiKey()}`;

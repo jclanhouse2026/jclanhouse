@@ -21,7 +21,7 @@ import {
   Info
 } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp } from '../lib/localDb';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 import { useNavigate } from 'react-router-dom';
 

@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { Theme, MugOrder } from '../types';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, onSnapshot } from '../lib/localDb';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
 const THEME_BUCKET = 'themes';
@@ -46,22 +46,34 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     );
 
     // Listen for mug orders
-    const ordersUnsubscribe = onSnapshot(
-      query(collection(db, 'mug_orders'), orderBy('createdAt', 'desc')),
-      (snapshot) => {
-        const orders = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as MugOrder));
-        setMugOrders(orders);
-      }
-    );
+    let ordersUnsubscribe = () => {};
+    if (user) {
+      const ordersQuery = user.role === 'admin' 
+        ? query(collection(db, 'mug_orders'), orderBy('createdAt', 'desc'))
+        : query(collection(db, 'mug_orders'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+        
+      ordersUnsubscribe = onSnapshot(
+        ordersQuery,
+        (snapshot) => {
+          const orders = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as MugOrder));
+          setMugOrders(orders);
+        },
+        (error) => {
+          console.error("Erro ao buscar pedidos de canecas:", error);
+        }
+      );
+    } else {
+      setMugOrders([]);
+    }
 
     return () => {
       themesUnsubscribe();
       ordersUnsubscribe();
     };
-  }, []);
+  }, [user]);
 
   const addTheme = async (themeData: Omit<Theme, 'id'>) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar tema.");

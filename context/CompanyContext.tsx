@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { doc, getDoc, setDoc } from '../lib/localDb';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface CompanyInfo {
     name: string;

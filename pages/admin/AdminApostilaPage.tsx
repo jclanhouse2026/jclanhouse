@@ -10,7 +10,7 @@ import {
   onSnapshot, 
   query, 
   orderBy 
-} from '../../lib/localDb';
+} from 'firebase/firestore';
 import { 
   Save, 
   Plus, 

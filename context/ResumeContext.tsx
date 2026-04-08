@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, query, where, onSnapshot } from '../lib/localDb';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, query, where, onSnapshot } from 'firebase/firestore';
 import type { ResumeData, Experience, Education, Language, Course, InformaticsData, ResumeConfig, Objective, TemplateOption, LineHeightOption, FontSizeOption, ResumeRequest } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
@@ -119,23 +119,55 @@ const ResumeContext = createContext<ResumeContextType | undefined>(undefined);
 export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
 
-  const [resumeData, setResumeData] = useState<ResumeData>(() => {
-    try {
-      const localData = localStorage.getItem('resumeData');
-      return localData ? JSON.parse(localData) : initialResumeData;
-    } catch (error) {
-      console.error("Could not parse resume data from localStorage", error);
-      return initialResumeData;
-    }
-  });
-
+  const [resumeData, setResumeData] = useState<ResumeData>(initialResumeData);
   const [resumeConfig, setResumeConfig] = useState<ResumeConfig>(initialResumeConfig);
-  
   const [resumeRequests, setResumeRequests] = useState<ResumeRequest[]>([]);
 
   useEffect(() => {
+    if (user) {
+      const fetchUserResume = async () => {
+        try {
+          const docRef = doc(db, 'user_resumes', user.id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setResumeData(docSnap.data() as ResumeData);
+          } else {
+            // Try to load from local storage as a fallback for first-time login
+            const localData = localStorage.getItem('resumeData');
+            if (localData) {
+              setResumeData(JSON.parse(localData));
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching user resume:", error);
+        }
+      };
+      fetchUserResume();
+    } else {
+      try {
+        const localData = localStorage.getItem('resumeData');
+        if (localData) setResumeData(JSON.parse(localData));
+      } catch (error) {
+        console.error("Could not parse resume data from localStorage", error);
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
     localStorage.setItem('resumeData', JSON.stringify(resumeData));
-  }, [resumeData]);
+    if (user) {
+      const saveUserResume = async () => {
+        try {
+          await setDoc(doc(db, 'user_resumes', user.id), resumeData);
+        } catch (error) {
+          console.error("Error saving user resume:", error);
+        }
+      };
+      // Debounce saving to Firestore to avoid too many writes
+      const timeoutId = setTimeout(saveUserResume, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [resumeData, user]);
 
   const importProfileData = (customer: any) => {
     setResumeData(prev => ({
@@ -291,22 +323,74 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
+  const capitalizeWords = (str: string) => {
+    if (!str) return str;
+    const lowerWords = ['de', 'da', 'do', 'das', 'dos', 'e'];
+    return str.split(' ').map((word, index) => {
+      if (word.length === 0) return word;
+      const lowerWord = word.toLowerCase();
+      if (index !== 0 && lowerWords.includes(lowerWord)) {
+        return lowerWord;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+  };
+
   const updateTitle = (value: string) => setResumeData(prev => ({ ...prev, title: value }));
-  const updateProfile = (field: keyof ResumeData['profile'], value: string) => setResumeData(prev => ({ ...prev, profile: { ...prev.profile, [field]: value } }));
-  const updateAddress = (field: keyof ResumeData['profile']['address'], value: string) => setResumeData(prev => ({ ...prev, profile: { ...prev.profile, address: { ...prev.profile.address, [field]: value, }, }, }));
+  const updateProfile = (field: keyof ResumeData['profile'], value: string) => {
+    let formattedValue = value;
+    if (field === 'name' || field === 'birthPlace') {
+      formattedValue = capitalizeWords(value);
+    }
+    setResumeData(prev => ({ ...prev, profile: { ...prev.profile, [field]: formattedValue } }));
+  };
+  const updateAddress = (field: keyof ResumeData['profile']['address'], value: string) => {
+    let formattedValue = value;
+    if (field === 'street' || field === 'neighborhood' || field === 'city') {
+      formattedValue = capitalizeWords(value);
+    }
+    if (field === 'state') {
+      formattedValue = value.toUpperCase();
+    }
+    setResumeData(prev => ({ ...prev, profile: { ...prev.profile, address: { ...prev.profile.address, [field]: formattedValue, }, }, }));
+  };
   const updateCnh = (field: 'category' | 'ear', value: string | boolean) => setResumeData(prev => ({ ...prev, profile: { ...prev.profile, cnh: { ...prev.profile.cnh, [field]: value, }, }, }));
   const updateSummary = (value: string) => setResumeData(prev => ({ ...prev, summary: value }));
   const addExperience = () => setResumeData(prev => ({ ...prev, experiences: [...prev.experiences, { id: Date.now().toString(), role: '', company: '', period: '', description: '' }] }));
-  const updateExperience = (id: string, field: keyof Experience, value: string) => setResumeData(prev => ({ ...prev, experiences: prev.experiences.map(exp => (exp.id === id ? { ...exp, [field]: value } : exp)), }));
+  const updateExperience = (id: string, field: keyof Experience, value: string) => {
+    let formattedValue = value;
+    if (field === 'role' || field === 'company') {
+      formattedValue = capitalizeWords(value);
+    }
+    setResumeData(prev => ({ ...prev, experiences: prev.experiences.map(exp => (exp.id === id ? { ...exp, [field]: formattedValue } : exp)), }));
+  };
   const removeExperience = (id: string) => setResumeData(prev => ({ ...prev, experiences: prev.experiences.filter(exp => exp.id !== id) }));
   const addEducation = () => setResumeData(prev => ({ ...prev, education: [...prev.education, { id: Date.now().toString(), institution: '', degree: 'Ensino Médio - Completo', period: '' }] }));
-  const updateEducation = (id: string, field: keyof Education, value: string) => setResumeData(prev => ({ ...prev, education: prev.education.map(edu => (edu.id === id ? { ...edu, [field]: value } : edu)), }));
+  const updateEducation = (id: string, field: keyof Education, value: string) => {
+    let formattedValue = value;
+    if (field === 'institution' || field === 'degree') {
+      formattedValue = capitalizeWords(value);
+    }
+    setResumeData(prev => ({ ...prev, education: prev.education.map(edu => (edu.id === id ? { ...edu, [field]: formattedValue } : edu)), }));
+  };
   const removeEducation = (id: string) => setResumeData(prev => ({ ...prev, education: prev.education.filter(edu => edu.id !== id) }));
   const addCourse = () => setResumeData(prev => ({ ...prev, courses: [...prev.courses, { id: Date.now().toString(), name: '', institution: '', workload: '', conclusionYear: '' }] }));
-  const updateCourse = (id: string, field: keyof Course, value: string) => setResumeData(prev => ({ ...prev, courses: prev.courses.map(c => (c.id === id ? { ...c, [field]: value } : c)), }));
+  const updateCourse = (id: string, field: keyof Course, value: string) => {
+    let formattedValue = value;
+    if (field === 'name' || field === 'institution') {
+      formattedValue = capitalizeWords(value);
+    }
+    setResumeData(prev => ({ ...prev, courses: prev.courses.map(c => (c.id === id ? { ...c, [field]: formattedValue } : c)), }));
+  };
   const removeCourse = (id: string) => setResumeData(prev => ({ ...prev, courses: prev.courses.filter(c => c.id !== id) }));
   const addLanguage = () => setResumeData(prev => ({ ...prev, languages: [...prev.languages, { id: Date.now().toString(), name: '', level: 'Básico' }] }));
-  const updateLanguage = (id: string, field: keyof Language, value: string) => setResumeData(prev => ({ ...prev, languages: prev.languages.map(lang => (lang.id === id ? { ...lang, [field]: value } : lang)), }));
+  const updateLanguage = (id: string, field: keyof Language, value: string) => {
+    let formattedValue = value;
+    if (field === 'name') {
+      formattedValue = capitalizeWords(value);
+    }
+    setResumeData(prev => ({ ...prev, languages: prev.languages.map(lang => (lang.id === id ? { ...lang, [field]: formattedValue } : lang)), }));
+  };
   const removeLanguage = (id: string) => setResumeData(prev => ({ ...prev, languages: prev.languages.filter(lang => lang.id !== id) }));
   const setTemplate = (template: ResumeData['template']) => setResumeData(prev => ({ ...prev, template }));
   const setTemplateColor = (color: string) => setResumeData(prev => ({ ...prev, templateColor: color }));

@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { ServiceSetting } from '../types';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, deleteDoc, doc, writeBatch } from '../lib/localDb';
+import { collection, getDocs, addDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 
 interface ServiceSettingsContextType {
   serviceSettings: ServiceSetting[];

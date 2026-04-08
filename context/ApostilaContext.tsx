@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, doc, onSnapshot, query, getDoc } from '../lib/localDb';
+import { collection, doc, onSnapshot, query, getDoc } from 'firebase/firestore';
 
 interface ApostilaSettings {
   id: string;
