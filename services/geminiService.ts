@@ -1,4 +1,5 @@
 import Groq from "groq-sdk";
+import { GoogleGenAI } from "@google/genai";
 
 let customApiKey = '';
 
@@ -6,106 +7,174 @@ export const setCustomApiKey = (key: string) => {
   customApiKey = key;
 };
 
-const getAiClient = () => {
-  const apiKey = customApiKey || 
+type AIProvider = 'groq' | 'gemini';
+
+interface AIClient {
+  provider: AIProvider;
+  client: Groq | GoogleGenAI;
+  apiKey: string;
+}
+
+const getAiClient = (): AIClient => {
+  const rawKey = customApiKey || 
                  import.meta.env.VITE_GROQ_API_KEY || 
                  import.meta.env.VITE_AI_KEY || 
-                 process.env.GROQ_API_KEY;
+                 process.env.GROQ_API_KEY ||
+                 process.env.GEMINI_API_KEY;
+                 
+  const apiKey = (rawKey || '').trim();
                  
   if (!apiKey) {
-    throw new Error("Chave de API do Groq não encontrada. Verifique as configurações do projeto.");
+    throw new Error("Chave de API não encontrada. Verifique as configurações do projeto.");
   }
-  return new Groq({ apiKey, dangerouslyAllowBrowser: true });
+
+  if (apiKey.startsWith('AIza')) {
+    return {
+      provider: 'gemini',
+      client: new GoogleGenAI(apiKey),
+      apiKey
+    };
+  }
+
+  return {
+    provider: 'groq',
+    client: new Groq({ apiKey, dangerouslyAllowBrowser: true }),
+    apiKey
+  };
 };
 
-const DEFAULT_MODEL = "llama-3.3-70b-versatile";
+const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
+const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
 
 /**
- * Função global e reutilizável para gerar texto com IA usando Groq
+ * Função global e reutilizável para gerar texto com IA (Detecta Groq ou Gemini)
  */
 export const gerarTextoIA = async (prompt: string, systemInstruction?: string): Promise<string> => {
   try {
-    const groq = getAiClient();
-    const response = await groq.chat.completions.create({
-      model: DEFAULT_MODEL,
-      messages: [
-        { role: "system", content: systemInstruction || "Você é um assistente prestativo." },
-        { role: "user", content: prompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 1024,
-      top_p: 1,
-    });
+    const { provider, client } = getAiClient();
 
-    return response.choices[0]?.message?.content || "";
+    if (provider === 'groq') {
+      const groq = client as Groq;
+      const response = await groq.chat.completions.create({
+        model: DEFAULT_GROQ_MODEL,
+        messages: [
+          { role: "system", content: systemInstruction || "Você é um assistente prestativo." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 1024,
+      });
+      return response.choices[0]?.message?.content || "";
+    } else {
+      const ai = client as any; // Using any to bypass type issues with the custom wrapper
+      const response = await ai.models.generateContent({
+        model: DEFAULT_GEMINI_MODEL,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction: systemInstruction || undefined,
+          temperature: 0.7,
+        }
+      });
+      return response.text || "";
+    }
   } catch (error) {
-    console.error("Erro na chamada da IA (Groq):", error);
+    console.error("Erro na chamada da IA:", error);
     throw error;
   }
 };
 
 export const generateThemeNameFromImage = async (base64Image: string): Promise<string> => {
-  // Groq doesn't support vision in all models yet, or requires specific models.
-  // For now, we'll return a generic name or use a text-based fallback if possible.
-  // Since the original used Gemini Vision, and Groq's vision models are different (e.g. llama-3.2-11b-vision-preview)
   try {
-    const groq = getAiClient();
-    const response = await groq.chat.completions.create({
-      model: "llama-3.2-11b-vision-preview",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Analise esta imagem de capa de caderno/agenda/caderneta. Crie um nome curto, criativo e descritivo para este tema (máximo 4 palavras). Retorne APENAS o nome, sem aspas, sem pontuação extra." },
-            {
-              type: "image_url",
-              image_url: {
-                url: base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`,
-              },
-            },
-          ],
-        },
-      ],
-    });
+    const { provider, client } = getAiClient();
 
-    return response.choices[0]?.message?.content?.trim() || "Novo Tema";
+    if (provider === 'groq') {
+      const groq = client as Groq;
+      const response = await groq.chat.completions.create({
+        model: "llama-3.2-11b-vision-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Analise esta imagem de capa de caderno/agenda/caderneta. Crie um nome curto, criativo e descritivo para este tema (máximo 4 palavras). Retorne APENAS o nome, sem aspas, sem pontuação extra." },
+              {
+                type: "image_url",
+                image_url: {
+                  url: base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`,
+                },
+              },
+            ],
+          },
+        ],
+      });
+      return response.choices[0]?.message?.content?.trim() || "Novo Tema";
+    } else {
+      const ai = client as any;
+      const base64Data = (base64Image || '').split(',')[1] || base64Image;
+      const mimeType = (base64Image || '').split(';')[0].split(':')[1] || 'image/jpeg';
+
+      const response = await ai.models.generateContent({
+        model: DEFAULT_GEMINI_MODEL,
+        contents: {
+          parts: [
+            { inlineData: { data: base64Data, mimeType } },
+            { text: 'Analise esta imagem de capa de caderno/agenda/caderneta. Crie um nome curto, criativo e descritivo para este tema (máximo 4 palavras). Retorne APENAS o nome, sem aspas, sem pontuação extra.' }
+          ]
+        }
+      });
+      return response.text?.trim() || "Novo Tema";
+    }
   } catch (error) {
-    console.error("Error generating theme name with Groq Vision:", error);
+    console.error("Error generating theme name:", error);
     return "Novo Tema";
   }
 };
 
 export const generateMugThemeInfoFromImage = async (base64Image: string): Promise<{ name: string, category: string }> => {
   try {
-    const groq = getAiClient();
-    const response = await groq.chat.completions.create({
-      model: "llama-3.2-11b-vision-preview",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: 'Analise esta imagem de estampa para caneca. Identifique o tema e sugira um nome curto e uma categoria (ex: Dia das Mães, Dia dos Pais, Infantil, Geek, Profissões, etc). Retorne APENAS um objeto JSON no formato: {"name": "Nome do Tema", "category": "Nome da Categoria"}. Sem aspas extras, sem blocos de código markdown.' },
-            {
-              type: "image_url",
-              image_url: {
-                url: base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`,
-              },
-            },
-          ],
-        },
-      ],
-      response_format: { type: "json_object" }
-    });
+    const { provider, client } = getAiClient();
 
-    const text = response.choices[0]?.message?.content?.trim() || '{"name": "Novo Tema", "category": "Geral"}';
-    
-    try {
+    if (provider === 'groq') {
+      const groq = client as Groq;
+      const response = await groq.chat.completions.create({
+        model: "llama-3.2-11b-vision-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: 'Analise esta imagem de estampa para caneca. Identifique o tema e sugira um nome curto e uma categoria (ex: Dia das Mães, Dia dos Pais, Infantil, Geek, Profissões, etc). Retorne APENAS um objeto JSON no formato: {"name": "Nome do Tema", "category": "Nome da Categoria"}. Sem aspas extras, sem blocos de código markdown.' },
+              {
+                type: "image_url",
+                image_url: {
+                  url: base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`,
+                },
+              },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" }
+      });
+      const text = response.choices[0]?.message?.content?.trim() || '{"name": "Novo Tema", "category": "Geral"}';
       return JSON.parse(text);
-    } catch (e) {
-      return { name: "Novo Tema", category: "Geral" };
+    } else {
+      const ai = client as any;
+      const base64Data = (base64Image || '').split(',')[1] || base64Image;
+      const mimeType = (base64Image || '').split(';')[0].split(':')[1] || 'image/jpeg';
+
+      const response = await ai.models.generateContent({
+        model: DEFAULT_GEMINI_MODEL,
+        contents: {
+          parts: [
+            { inlineData: { data: base64Data, mimeType } },
+            { text: 'Analise esta imagem de estampa para caneca. Identifique o tema e sugira um nome curto e uma categoria (ex: Dia das Mães, Dia dos Pais, Infantil, Geek, Profissões, etc). Retorne APENAS um objeto JSON no formato: {"name": "Nome do Tema", "category": "Nome da Categoria"}. Sem aspas extras, sem blocos de código markdown.' }
+          ]
+        }
+      });
+      const text = response.text?.trim() || "";
+      const jsonStr = text.replace(/```json|```/g, '').trim();
+      return JSON.parse(jsonStr);
     }
   } catch (error) {
-    console.error("Error generating mug theme info with Groq Vision:", error);
+    console.error("Error generating mug theme info:", error);
     return { name: "Novo Tema", category: "Geral" };
   }
 };

@@ -15,11 +15,13 @@ export default defineConfig(({ mode }) => {
         'process.env.GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY || process.env.GROQ_API_KEY),
         'import.meta.env.VITE_AI_KEY': JSON.stringify(env.VITE_AI_KEY || env.GROQ_API_KEY || env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY),
         'import.meta.env.VITE_GROQ_API_KEY': JSON.stringify(env.VITE_GROQ_API_KEY || env.GROQ_API_KEY || env.VITE_AI_KEY),
+        'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY || env.VITE_AI_KEY),
       },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
-        }
+        },
+        dedupe: ['react', 'react-dom'],
       }
     };
 });

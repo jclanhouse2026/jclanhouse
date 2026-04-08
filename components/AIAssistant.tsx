@@ -36,9 +36,13 @@ const AIAssistant: React.FC = () => {
       );
       setMessages(prev => [...prev, { role: 'ai', text: response || "Desculpe, não consegui processar sua solicitação." }]);
     } catch (error: any) {
-      const errorMessage = error.message?.includes("Chave de API") 
-        ? "Erro de configuração: A chave da IA não foi encontrada. Por favor, configure a VITE_AI_KEY nas configurações."
-        : "Ocorreu um erro ao falar com a IA. Verifique sua conexão ou tente novamente mais tarde.";
+      let errorMessage = "Ocorreu um erro ao falar com a IA. Verifique sua conexão ou tente novamente mais tarde.";
+      
+      if (error.message?.includes("Chave de API")) {
+        errorMessage = `Erro de configuração: ${error.message}`;
+      } else if (error.message?.includes("401") || error.message?.includes("invalid_api_key") || error.message?.includes("API key not valid")) {
+        errorMessage = "Erro de Autenticação: A chave de API fornecida é inválida. Por favor, verifique se a chave está correta no painel administrativo.";
+      }
       
       setMessages(prev => [...prev, { role: 'ai', text: errorMessage }]);
       console.error("AI Error:", error);
