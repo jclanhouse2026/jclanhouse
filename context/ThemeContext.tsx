@@ -1,16 +1,18 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { Theme, MugOrder } from '../types';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { useSettings } from './SettingsContext';
+import { uploadToGitHub, isGitHubConfigured } from '../services/githubService';
 
 const THEME_BUCKET = 'themes';
 
 interface ThemeContextType {
   themes: Theme[];
   mugOrders: MugOrder[];
-  addTheme: (theme: Omit<Theme, 'id'>) => Promise<void>;
-  updateTheme: (theme: Theme) => Promise<void>;
+  addTheme: (theme: Omit<Theme, 'id'> & { file?: File }) => Promise<void>;
+  updateTheme: (theme: Theme & { file?: File }) => Promise<void>;
   deleteTheme: (themeId: string) => Promise<void>;
   addMugOrder: (order: Omit<MugOrder, 'id' | 'createdAt' | 'status'>) => Promise<string>;
   updateMugOrderStatus: (orderId: string, status: 'pending' | 'completed') => Promise<void>;
@@ -21,6 +23,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const { settings } = useSettings();
   const [themes, setThemes] = useState<Theme[]>([]);
   const [mugOrders, setMugOrders] = useState<MugOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,11 +78,25 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
   }, [user]);
 
-  const addTheme = async (themeData: Omit<Theme, 'id'>) => {
+  const addTheme = async (themeData: Omit<Theme, 'id'> & { file?: File }) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar tema.");
 
-    const { imageUrl, ...restThemeData } = themeData;
+    const { imageUrl, file, ...restThemeData } = themeData;
     let publicUrl = imageUrl;
+
+    if (file && isGitHubConfigured(settings)) {
+      try {
+        publicUrl = await uploadToGitHub(
+          file,
+          settings.githubToken,
+          settings.githubOwner,
+          settings.githubRepo,
+          settings.githubBranch
+        );
+      } catch (error) {
+        console.error("Erro ao fazer upload para o GitHub, usando base64 como fallback:", error);
+      }
+    }
 
     const newThemeData: any = { ...restThemeData, imageUrl: publicUrl, user_id: user.id };
     
@@ -102,9 +119,25 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setThemes(prevThemes => [newTheme, ...prevThemes]);
   };
 
-  const updateTheme = async (updatedTheme: Theme) => {
-    const { id, imageUrl, ...restThemeData } = updatedTheme;
-    const updateData: any = { ...restThemeData, imageUrl };
+  const updateTheme = async (updatedTheme: Theme & { file?: File }) => {
+    const { id, imageUrl, file, ...restThemeData } = updatedTheme;
+    let publicUrl = imageUrl;
+
+    if (file && isGitHubConfigured(settings)) {
+      try {
+        publicUrl = await uploadToGitHub(
+          file,
+          settings.githubToken,
+          settings.githubOwner,
+          settings.githubRepo,
+          settings.githubBranch
+        );
+      } catch (error) {
+        console.error("Erro ao fazer upload para o GitHub, usando base64 como fallback:", error);
+      }
+    }
+
+    const updateData: any = { ...restThemeData, imageUrl: publicUrl };
     
     Object.keys(updateData).forEach(key => {
       if (updateData[key] === undefined) {

@@ -258,6 +258,17 @@ const AdminOrdersPage: React.FC = () => {
                         <div className="flex-grow">
                           <p className="text-white font-medium text-sm">{item.name}</p>
                           <p className="text-slate-400 text-xs">Qtd: {item.quantity} x {item.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                          {item.customization?.text && (
+                            <p className="text-cyan-400 text-xs mt-1 font-medium">Texto: "{item.customization.text}"</p>
+                          )}
+                          {item.customization?.image && (
+                            <div className="mt-2">
+                              <p className="text-xs text-slate-500 mb-1">Imagem Personalizada:</p>
+                              <a href={item.customization.image} target="_blank" rel="noopener noreferrer" className="inline-block">
+                                <img src={item.customization.image} alt="Personalização" className="w-20 h-20 object-cover rounded border border-slate-600 hover:border-cyan-500 transition-colors" />
+                              </a>
+                            </div>
+                          )}
                         </div>
                         <div className="text-right">
                           <p className="text-white font-bold">

@@ -1,20 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useSettings } from '../../context/SettingsContext';
 import { SafeImage } from '../../components/SafeImage';
 import type { User } from '../../types';
 import UploadIcon from '../../components/icons/UploadIcon';
+import CheckBadgeIcon from '../../components/icons/CheckBadgeIcon';
 
 type Tab = 'general' | 'appearance' | 'account';
 
 const AdminSettingsPage: React.FC = () => {
-  // FIX: Destructure refetchUser from useAuth to update user state after changes.
   const { user, adminUpdateUser, refetchUser } = useAuth();
+  const { settings, updateSettings } = useSettings();
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // State for forms
-  const [siteName, setSiteName] = useState('JC LAN HOUSE');
-  const [contactEmail, setContactEmail] = useState('contato@jclanhouse.com');
+  const [siteName, setSiteName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('');
+  const [homeBgUrl, setHomeBgUrl] = useState('');
+  const [aiKey, setAiKey] = useState('');
 
   const [adminName, setAdminName] = useState('');
   const [adminUsername, setAdminUsername] = useState('');
@@ -35,6 +40,16 @@ const AdminSettingsPage: React.FC = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (settings) {
+      setSiteName(settings.siteName);
+      setContactEmail(settings.contactEmail);
+      setPrimaryColor(settings.primaryColor);
+      setHomeBgUrl(settings.homeBgUrl);
+      setAiKey(settings.aiKey || '');
+    }
+  }, [settings]);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
         const file = e.target.files[0];
@@ -51,21 +66,21 @@ const AdminSettingsPage: React.FC = () => {
     setError('');
     setShowSuccess(false);
     
-    if (activeTab === 'account') {
-        if (newPassword && newPassword !== confirmPassword) {
-            setError('As novas senhas não correspondem.');
-            return;
-        }
-        if (!user) {
-            setError('Usuário admin não encontrado para atualizar.');
-            return;
-        }
-        if (!adminUsername.trim()) {
-            setError('O nome de usuário (login) não pode estar vazio.');
-            return;
-        }
+    try {
+        if (activeTab === 'account') {
+            if (newPassword && newPassword !== confirmPassword) {
+                setError('As novas senhas não correspondem.');
+                return;
+            }
+            if (!user) {
+                setError('Usuário admin não encontrado para atualizar.');
+                return;
+            }
+            if (!adminUsername.trim()) {
+                setError('O nome de usuário (login) não pode estar vazio.');
+                return;
+            }
 
-        try {
             const updates: Partial<User> = {
                 name: adminName,
                 username: adminUsername,
@@ -76,23 +91,24 @@ const AdminSettingsPage: React.FC = () => {
                 updates.password = newPassword;
             }
             await adminUpdateUser(user.id, updates);
-            // FIX: Call refetchUser to update the global user state with the new data.
             await refetchUser();
             setNewPassword('');
             setConfirmPassword('');
-        } catch (err) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError('Ocorreu um erro desconhecido ao salvar.');
-            }
-            return; // Stop on error
+        } else if (activeTab === 'general') {
+            await updateSettings({ siteName, contactEmail, aiKey });
+        } else if (activeTab === 'appearance') {
+            await updateSettings({ primaryColor, homeBgUrl });
+        }
+
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 2000);
+    } catch (err) {
+        if (err instanceof Error) {
+            setError(err.message);
+        } else {
+            setError('Ocorreu um erro desconhecido ao salvar.');
         }
     }
-
-    // For now, other tabs just show success message
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
   };
 
   const TabButton: React.FC<{tabId: Tab, children: React.ReactNode}> = ({ tabId, children }) => (
@@ -129,6 +145,12 @@ const AdminSettingsPage: React.FC = () => {
                 <label htmlFor="contactEmail" className="text-sm font-bold text-slate-300 block mb-2">Email de Contato</label>
                 <input type="email" id="contactEmail" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className="w-full p-3 bg-slate-700 rounded-md text-white border border-slate-600 focus:border-cyan-500 focus:ring-cyan-500 focus:outline-none" />
               </div>
+              <hr className="border-slate-700" />
+              <div>
+                <label htmlFor="aiKey" className="text-sm font-bold text-slate-300 block mb-2">Chave de API do Gemini (IA)</label>
+                <input type="password" id="aiKey" value={aiKey} onChange={(e) => setAiKey(e.target.value)} className="w-full p-3 bg-slate-700 rounded-md text-white border border-slate-600 focus:border-cyan-500 focus:ring-cyan-500 focus:outline-none" placeholder="Digite sua chave de API do Gemini" />
+                <p className="text-xs text-slate-400 mt-1">Necessário para que as funções de IA funcionem após a publicação do site.</p>
+              </div>
             </div>
           )}
           {activeTab === 'appearance' && (
@@ -136,11 +158,11 @@ const AdminSettingsPage: React.FC = () => {
               <h3 className="text-lg font-semibold text-white">Aparência Visual</h3>
               <div>
                 <label htmlFor="primaryColor" className="text-sm font-bold text-slate-300 block mb-2">Cor Principal (Ex: botões)</label>
-                <input type="color" id="primaryColor" defaultValue="#06b6d4" className="w-20 h-10 p-1 bg-slate-700 border border-slate-600 rounded-md" />
+                <input type="color" id="primaryColor" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="w-20 h-10 p-1 bg-slate-700 border border-slate-600 rounded-md" />
               </div>
               <div>
                 <label htmlFor="homeBgUrl" className="text-sm font-bold text-slate-300 block mb-2">URL da Imagem de Fundo (Home)</label>
-                <input type="text" id="homeBgUrl" defaultValue="https://picsum.photos/1920/1080?grayscale&blur=2" className="w-full p-3 bg-slate-700 rounded-md text-white border border-slate-600 focus:border-cyan-500 focus:ring-cyan-500 focus:outline-none" />
+                <input type="text" id="homeBgUrl" value={homeBgUrl} onChange={(e) => setHomeBgUrl(e.target.value)} className="w-full p-3 bg-slate-700 rounded-md text-white border border-slate-600 focus:border-cyan-500 focus:ring-cyan-500 focus:outline-none" />
               </div>
             </div>
           )}

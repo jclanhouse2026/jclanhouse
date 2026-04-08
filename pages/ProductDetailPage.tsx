@@ -6,6 +6,8 @@ import Footer from '../components/Footer';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCategories } from '../context/CategoryContext';
 import { useCart } from '../context/CartContext';
+import { useSettings } from '../context/SettingsContext';
+import { uploadToGitHub, isGitHubConfigured } from '../services/githubService';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import SparklesIcon from '../components/icons/SparklesIcon';
 import UploadIcon from '../components/icons/UploadIcon';
@@ -19,10 +21,12 @@ const ProductDetailPage: React.FC = () => {
     const { products } = usePortfolio();
     const { categories } = useCategories();
     const { addToCart } = useCart();
+    const { settings } = useSettings();
 
     const [quantity, setQuantity] = useState(1);
     const [customText, setCustomText] = useState('');
     const [customImage, setCustomImage] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
     const [addedToCart, setAddedToCart] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,14 +50,39 @@ const ProductDetailPage: React.FC = () => {
         return subcategory ? subcategory.name : category.name;
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setCustomImage(reader.result as string);
-            };
-            reader.readAsDataURL(file);
+            
+            // Upload to GitHub (integrated storage)
+            if (isGitHubConfigured(settings)) {
+                setIsUploading(true);
+                try {
+                    const url = await uploadToGitHub(
+                        file,
+                        settings.githubToken,
+                        settings.githubOwner,
+                        settings.githubRepo,
+                        settings.githubBranch
+                    );
+                    setCustomImage(url);
+                } catch (error) {
+                    console.error("Erro ao fazer upload para o GitHub, usando base64 como fallback:", error);
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        setCustomImage(reader.result as string);
+                    };
+                    reader.readAsDataURL(file);
+                } finally {
+                    setIsUploading(false);
+                }
+            } else {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setCustomImage(reader.result as string);
+                };
+                reader.readAsDataURL(file);
+            }
         }
     };
 
@@ -70,7 +99,7 @@ const ProductDetailPage: React.FC = () => {
             unitPrice: unitPrice,
             customization: {
                 text: customText,
-                image: customImage ? 'Imagem Anexada' : undefined,
+                image: customImage || undefined,
             }
         });
 
@@ -180,7 +209,12 @@ const ProductDetailPage: React.FC = () => {
                                     className="w-full bg-slate-700 rounded-lg border-2 border-dashed border-slate-600 p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-cyan-500 min-h-[100px]"
                                     onClick={() => fileInputRef.current?.click()}
                                 >
-                                    {customImage ? (
+                                    {isUploading ? (
+                                        <div className="flex flex-col items-center">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500 mb-2"></div>
+                                            <span className="text-xs text-slate-400">Enviando...</span>
+                                        </div>
+                                    ) : customImage ? (
                                         <img src={customImage} alt="Preview" className="max-h-24 rounded-md" />
                                     ) : (
                                         <>

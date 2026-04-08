@@ -18,7 +18,7 @@ interface ThemeDraft {
 
 interface MultiThemeModalProps {
   theme: Theme | null; // If editing a single existing theme
-  onSave: (data: Omit<Theme, 'id'> & { id?: string }) => Promise<void>;
+  onSave: (data: Omit<Theme, 'id'> & { id?: string; file?: File }) => Promise<void>;
   onClose: () => void;
   type?: 'escolar' | 'caneca' | 'caderneta';
 }
@@ -142,7 +142,9 @@ const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClos
           id: theme ? theme.id : undefined,
           name: draft.name,
           imageUrl: draft.previewUrl,
-          category: draft.category
+          category: draft.category,
+          type: type,
+          file: draft.file
         });
       }
       onClose();

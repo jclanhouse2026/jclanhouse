@@ -42,6 +42,7 @@ import { SalesProvider } from './context/SalesContext';
 import { ExpensesProvider } from './context/ExpensesContext';
 import { CustomerProvider } from './context/CustomerContext';
 import { AuthProvider } from './context/AuthContext';
+import { SettingsProvider } from './context/SettingsContext';
 import { HomeSettingsProvider } from './context/HomeSettingsContext';
 import { ServiceSettingsProvider } from './context/ServiceSettingsContext';
 import { ServicePricingProvider } from './context/ServicePricingContext';
@@ -73,7 +74,8 @@ import AIAssistant from './components/AIAssistant';
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <NotificationProvider>
+      <SettingsProvider>
+        <NotificationProvider>
         <OrderProvider>
           <CompanyProvider>
             <HomeSettingsProvider>
@@ -185,6 +187,7 @@ const App: React.FC = () => {
           </CompanyProvider>
         </OrderProvider>
       </NotificationProvider>
+      </SettingsProvider>
     </AuthProvider>
   );
 };

@@ -1,48 +1,39 @@
-const getApiKey = () => import.meta.env.VITE_AI_KEY || import.meta.env.VITE_GEMINI_API_KEY;
-const getApiUrl = (model = 'gemini-1.5-flash') => {
-  const baseUrl = import.meta.env.VITE_API_URL || 'https://generativelanguage.googleapis.com/v1/models';
-  return `${baseUrl}/${model}:generateContent?key=${getApiKey()}`;
+import { GoogleGenAI } from "@google/genai";
+
+let customApiKey = '';
+
+export const setCustomApiKey = (key: string) => {
+  customApiKey = key;
 };
+
+const getAiClient = () => {
+  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
+  return new GoogleGenAI({ apiKey: apiKey || '' });
+};
+
+const DEFAULT_MODEL = "gemini-3-flash-preview";
 
 /**
  * Função global e reutilizável para gerar texto com IA
  */
 export const gerarTextoIA = async (prompt: string, systemInstruction?: string): Promise<string> => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    console.error("VITE_AI_KEY não configurada.");
-    return "Erro: Chave de API não configurada.";
-  }
-
   try {
-    const response = await fetch(getApiUrl(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
-        systemInstruction: systemInstruction ? {
-          parts: [{ text: systemInstruction }]
-        } : undefined,
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        }
-      })
+    const ai = getAiClient();
+    const response = await ai.models.generateContent({
+      model: DEFAULT_MODEL,
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      config: {
+        systemInstruction: systemInstruction || undefined,
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      }
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Falha na comunicação com a IA');
-    }
-
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    return response.text || "";
   } catch (error) {
     console.error("Erro na chamada da IA:", error);
     throw error;
@@ -50,30 +41,22 @@ export const gerarTextoIA = async (prompt: string, systemInstruction?: string): 
 };
 
 export const generateThemeNameFromImage = async (base64Image: string): Promise<string> => {
-  const apiKey = getApiKey();
-  if (!apiKey) return "Novo Tema";
-
   try {
     const base64Data = (base64Image || '').split(',')[1] || base64Image;
     const mimeType = (base64Image || '').split(';')[0].split(':')[1] || 'image/jpeg';
 
-    const response = await fetch(getApiUrl(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inlineData: { data: base64Data, mimeType } },
-            { text: 'Analise esta imagem de capa de caderno/agenda/caderneta. Crie um nome curto, criativo e descritivo para este tema (máximo 4 palavras). Retorne APENAS o nome, sem aspas, sem pontuação extra.' }
-          ]
-        }]
-      })
+    const ai = getAiClient();
+    const response = await ai.models.generateContent({
+      model: DEFAULT_MODEL,
+      contents: [{
+        parts: [
+          { inlineData: { data: base64Data, mimeType } },
+          { text: 'Analise esta imagem de capa de caderno/agenda/caderneta. Crie um nome curto, criativo e descritivo para este tema (máximo 4 palavras). Retorne APENAS o nome, sem aspas, sem pontuação extra.' }
+        ]
+      }]
     });
 
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "Novo Tema";
+    return response.text?.trim() || "Novo Tema";
   } catch (error) {
     console.error("Error generating theme name:", error);
     return "Novo Tema";
@@ -81,30 +64,22 @@ export const generateThemeNameFromImage = async (base64Image: string): Promise<s
 };
 
 export const generateMugThemeInfoFromImage = async (base64Image: string): Promise<{ name: string, category: string }> => {
-  const apiKey = getApiKey();
-  if (!apiKey) return { name: "Novo Tema", category: "Geral" };
-
   try {
     const base64Data = (base64Image || '').split(',')[1] || base64Image;
     const mimeType = (base64Image || '').split(';')[0].split(':')[1] || 'image/jpeg';
 
-    const response = await fetch(getApiUrl(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inlineData: { data: base64Data, mimeType } },
-            { text: 'Analise esta imagem de estampa para caneca. Identifique o tema e sugira um nome curto e uma categoria (ex: Dia das Mães, Dia dos Pais, Infantil, Geek, Profissões, etc). Retorne APENAS um objeto JSON no formato: {"name": "Nome do Tema", "category": "Nome da Categoria"}. Sem aspas extras, sem blocos de código markdown.' }
-          ]
-        }]
-      })
+    const ai = getAiClient();
+    const response = await ai.models.generateContent({
+      model: DEFAULT_MODEL,
+      contents: [{
+        parts: [
+          { inlineData: { data: base64Data, mimeType } },
+          { text: 'Analise esta imagem de estampa para caneca. Identifique o tema e sugira um nome curto e uma categoria (ex: Dia das Mães, Dia dos Pais, Infantil, Geek, Profissões, etc). Retorne APENAS um objeto JSON no formato: {"name": "Nome do Tema", "category": "Nome da Categoria"}. Sem aspas extras, sem blocos de código markdown.' }
+        ]
+      }]
     });
 
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '{"name": "Novo Tema", "category": "Geral"}';
+    const text = response.text?.trim() || '{"name": "Novo Tema", "category": "Geral"}';
     
     try {
       const jsonStr = text.replace(/```json|```/g, '').trim();

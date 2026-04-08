@@ -3,6 +3,8 @@ import type { PortfolioProduct, PortfolioImage } from '../types';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, writeBatch } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { useSettings } from './SettingsContext';
+import { uploadToGitHub, isGitHubConfigured } from '../services/githubService';
 
 const BUCKET_NAME = 'portfolio';
 
@@ -17,6 +19,7 @@ const PortfolioContext = createContext<PortfolioContextType | undefined>(undefin
 
 export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const { settings } = useSettings();
   const [products, setProducts] = useState<PortfolioProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -79,8 +82,24 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const uploadedImageRecords: { product_id: string; url: string }[] = [];
     for (const img of images) {
       if (img.file) {
-        // Salvar a imagem em base64 diretamente no Firestore para evitar problemas com o Storage
-        uploadedImageRecords.push({ product_id: docRef.id, url: img.url });
+        let imageUrl = img.url;
+        
+        // Upload to GitHub (integrated storage)
+        if (isGitHubConfigured(settings)) {
+          try {
+            imageUrl = await uploadToGitHub(
+              img.file,
+              settings.githubToken,
+              settings.githubOwner,
+              settings.githubRepo,
+              settings.githubBranch
+            );
+          } catch (error) {
+            console.error("Erro ao fazer upload para o GitHub, usando base64 como fallback:", error);
+          }
+        }
+        
+        uploadedImageRecords.push({ product_id: docRef.id, url: imageUrl });
       }
     }
 
@@ -146,8 +165,23 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const newImageRecords: { product_id: string; url: string; }[] = [];
     for (const img of images) {
         if (img.file) { // New image to upload
-            // Salvar a imagem em base64 diretamente no Firestore
-            newImageRecords.push({ product_id: id, url: img.url });
+            let imageUrl = img.url;
+            
+            if (isGitHubConfigured(settings)) {
+              try {
+                imageUrl = await uploadToGitHub(
+                  img.file,
+                  settings.githubToken,
+                  settings.githubOwner,
+                  settings.githubRepo,
+                  settings.githubBranch
+                );
+              } catch (error) {
+                console.error("Erro ao fazer upload para o GitHub, usando base64 como fallback:", error);
+              }
+            }
+            
+            newImageRecords.push({ product_id: id, url: imageUrl });
         } else { // Existing image to keep
             newImageRecords.push({ product_id: id, url: img.url });
         }

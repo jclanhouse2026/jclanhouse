@@ -78,12 +78,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 
                 if (docSnap.exists()) {
                     const profileData = docSnap.data();
+                    const currentRole = profileData.role || 'client';
+                    
+                    // Sync admin role if email is in ADMIN_EMAILS but role is not admin
+                    if (isAdminEmail && currentRole !== 'admin') {
+                        await updateDoc(docRef, { role: 'admin', is_premium: true, has_billing: true, pdv_access_status: 'authorized' });
+                        profileData.role = 'admin';
+                        profileData.is_premium = true;
+                        profileData.has_billing = true;
+                        profileData.pdv_access_status = 'authorized';
+                    }
+
                     setUser({
                         id: firebaseUser.uid,
                         email: firebaseUser.email || '',
                         name: profileData.name || 'Usuário',
                         username: profileData.username,
-                        role: isAdminEmail ? 'admin' : (profileData.role || 'client'),
+                        role: isAdminEmail ? 'admin' : currentRole,
                         isPremium: isAdminEmail || profileData.is_premium || false,
                         hasBilling: isAdminEmail || profileData.has_billing || false,
                         avatarUrl: profileData.avatar_url,
@@ -107,6 +118,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     };
                     
                     await setDoc(docRef, {
+                        email: defaultProfile.email,
                         username: defaultProfile.username,
                         name: defaultProfile.name,
                         avatar_url: defaultProfile.avatarUrl,
@@ -114,7 +126,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         is_premium: defaultProfile.isPremium,
                         has_billing: defaultProfile.hasBilling,
                         pdv_access_status: defaultProfile.pdvAccessStatus,
-                        status: defaultProfile.status
+                        status: defaultProfile.status,
+                        created_at: new Date().toISOString()
                     });
                     setUser(defaultProfile);
                 }
@@ -168,28 +181,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const loginWithGoogle = async (): Promise<void> => {
         try {
             const provider = new GoogleAuthProvider();
-            const result = await signInWithPopup(auth, provider);
-            const firebaseUser = result.user;
-            
-            const docRef = doc(db, 'users', firebaseUser.uid);
-            const docSnap = await getDoc(docRef);
-            
-            if (!docSnap.exists()) {
-                const isAdminEmail = firebaseUser.email ? ADMIN_EMAILS.includes(firebaseUser.email) : false;
-                const defaultProfile = {
-                    username: firebaseUser.email?.split('@')[0] || 'user',
-                    name: firebaseUser.displayName || 'Usuário',
-                    email: firebaseUser.email || '',
-                    avatar_url: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${(firebaseUser.displayName || 'User').replace(' ', '+')}&background=0891b2&color=fff`,
-                    role: isAdminEmail ? 'admin' : 'client',
-                    is_premium: isAdminEmail,
-                    has_billing: isAdminEmail,
-                    pdv_access_status: isAdminEmail ? 'authorized' : 'none',
-                    status: 'active'
-                };
-                
-                await setDoc(docRef, defaultProfile);
-            }
+            await signInWithPopup(auth, provider);
+            // onAuthStateChanged will handle the user document creation/sync
         } catch (error: any) {
             console.error("Google login error:", error);
             if (error.code === 'auth/popup-closed-by-user') {
