@@ -152,9 +152,14 @@ const ServicesPage: React.FC = () => {
               );
             })}
 
-            {serviceSettings.map((service, index) => (
-              <ServiceCard key={service.id} service={service} colors={iconColors[index % iconColors.length]} />
-            ))}
+            {serviceSettings
+              .filter(dynamicService => 
+                !coreServices.some(core => core.title.toLowerCase() === dynamicService.title.toLowerCase())
+              )
+              .map((service, index) => (
+                <ServiceCard key={service.id} service={service} colors={iconColors[index % iconColors.length]} />
+              ))
+            }
           </div>
         </div>
       </main>
