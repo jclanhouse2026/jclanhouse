@@ -4,12 +4,16 @@ import { useNotifications } from '../../context/NotificationContext';
 import { ShoppingBag, CheckCircle, Clock, XCircle, Eye, Trash2, MapPin, Phone, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Order } from '../../types';
+import ConfirmModal from '../../components/admin/ConfirmModal';
 
 const AdminOrdersPage: React.FC = () => {
   const { orders, loading, updateOrderStatus, deleteOrder } = useOrders();
   const { addNotification } = useNotifications();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [filter, setFilter] = useState<Order['status'] | 'all'>('all');
+  
+  // Modal de confirmação
+  const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, id?: string}>({ isOpen: false });
 
   const filteredOrders = filter === 'all' ? orders : orders.filter(o => o.status === filter);
 
@@ -61,6 +65,17 @@ const AdminOrdersPage: React.FC = () => {
       case 'cancelled': return 'Cancelado';
       default: return status;
     }
+  };
+
+  const handleDeleteClick = (orderId: string) => {
+      setConfirmModal({ isOpen: true, id: orderId });
+  };
+
+  const executeDelete = async () => {
+      if (confirmModal.id) {
+          await deleteOrder(confirmModal.id);
+      }
+      setConfirmModal({ isOpen: false });
   };
 
   if (loading) {
@@ -174,11 +189,7 @@ const AdminOrdersPage: React.FC = () => {
                   )}
 
                   <button
-                    onClick={() => {
-                      if (window.confirm('Tem certeza que deseja excluir este pedido permanentemente?')) {
-                        deleteOrder(order.id);
-                      }
-                    }}
+                    onClick={() => handleDeleteClick(order.id)}
                     className="p-2 bg-slate-700 text-red-400 rounded-lg hover:bg-red-400/10 transition-colors"
                     title="Excluir"
                   >
@@ -317,6 +328,14 @@ const AdminOrdersPage: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+      
+      <ConfirmModal 
+          isOpen={confirmModal.isOpen}
+          title="Excluir Pedido"
+          message="Tem certeza que deseja excluir este pedido permanentemente? Esta ação não pode ser desfeita."
+          onConfirm={executeDelete}
+          onCancel={() => setConfirmModal({ isOpen: false })}
+      />
     </div>
   );
 };

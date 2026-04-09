@@ -23,6 +23,7 @@ export interface User {
   // FIX: Add pdvAccessStatus property to User interface
   pdvAccessStatus?: PdvAccessStatus;
   status?: 'active' | 'inactive';
+  file?: File;
 }
 
 // --- Order System ---
@@ -87,6 +88,7 @@ export interface Customer {
   photoURL?: string;
   status: 'Ativo' | 'Inativo';
   signupDate: string;
+  file?: File;
 }
 
 

@@ -21,7 +21,7 @@ const emptyAddress: Address = { cep: '', street: '', number: '', neighborhood: '
 // --- CustomerModal Component ---
 const CustomerModal: React.FC<{
     customer: Customer | null;
-    onSave: (customerData: Omit<Customer, 'id' | 'userId' | 'signupDate' | 'status'> & { id?: string }) => void;
+    onSave: (customerData: Omit<Customer, 'id' | 'userId' | 'signupDate' | 'status'> & { id?: string; file?: File }) => void;
     onClose: () => void;
 }> = ({ customer, onSave, onClose }) => {
     
@@ -34,6 +34,7 @@ const CustomerModal: React.FC<{
         avatarUrl: customer?.avatarUrl || '',
         address: customer?.address || emptyAddress
     });
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [loadingCep, setLoadingCep] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -76,11 +77,13 @@ const CustomerModal: React.FC<{
     
     const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setSelectedFile(file);
             const reader = new FileReader();
             reader.onload = (event) => {
                 setFormData(prev => ({ ...prev, avatarUrl: event.target?.result as string }));
             };
-            reader.readAsDataURL(e.target.files[0]);
+            reader.readAsDataURL(file);
         }
         e.target.value = '';
     };
@@ -91,6 +94,7 @@ const CustomerModal: React.FC<{
         onSave({
             id: customer?.id,
             ...formData,
+            file: selectedFile || undefined
         });
     };
     

@@ -56,7 +56,7 @@ const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClos
         id: draftId,
         file,
         previewUrl,
-        name: 'Carregando...',
+        name: 'Novo Tema',
         category: 'UNISSEX',
         isGeneratingName: true,
         userEditedName: false
@@ -271,7 +271,7 @@ const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClos
             </button>
             <button 
               type="submit" 
-              disabled={isSaving || drafts.length === 0 || drafts.some(d => d.isGeneratingName)}
+              disabled={isSaving || drafts.length === 0}
               className="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               {isSaving ? (

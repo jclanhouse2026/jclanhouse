@@ -338,9 +338,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (file.size > MAX_SIZE) {
             throw new Error('O arquivo é muito grande. O limite é de 2MB.');
         }
-        const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, file);
-        return await getDownloadURL(storageRef);
+        
+        // Convert to base64 to bypass Firebase Storage issues
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
+        });
     };
 
     const value = {

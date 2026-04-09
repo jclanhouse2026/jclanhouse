@@ -19,6 +19,29 @@
             min-height: 100vh;
         }
     </style>
+    <script>
+        // Suppress benign Vite WebSocket errors that can trigger unhandled rejections in this environment
+        (function() {
+            const isViteError = (err) => {
+                const msg = err?.message || err?.reason?.message || (typeof err?.reason === 'string' ? err.reason : '');
+                return msg && (msg.includes('WebSocket') || msg.includes('[vite]'));
+            };
+
+            window.addEventListener('unhandledrejection', (event) => {
+                if (isViteError(event)) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                }
+            });
+
+            window.addEventListener('error', (event) => {
+                if (isViteError(event)) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                }
+            }, true);
+        })();
+    </script>
 </head>
 <body>
     <div id="root"></div>

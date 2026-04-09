@@ -3,14 +3,12 @@ import type { Theme, MugOrder } from '../types';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
-import { useSettings } from './SettingsContext';
-import { uploadToGitHub, isGitHubConfigured } from '../services/githubService';
-
-const THEME_BUCKET = 'themes';
+import { uploadFile } from '../lib/storage';
 
 interface ThemeContextType {
   themes: Theme[];
   mugOrders: MugOrder[];
+  loading: boolean;
   addTheme: (theme: Omit<Theme, 'id'> & { file?: File }) => Promise<void>;
   updateTheme: (theme: Theme & { file?: File }) => Promise<void>;
   deleteTheme: (themeId: string) => Promise<void>;
@@ -23,7 +21,6 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const { settings } = useSettings();
   const [themes, setThemes] = useState<Theme[]>([]);
   const [mugOrders, setMugOrders] = useState<MugOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,21 +81,17 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const { imageUrl, file, ...restThemeData } = themeData;
     let publicUrl = imageUrl;
 
-    if (file && isGitHubConfigured(settings)) {
-      try {
-        publicUrl = await uploadToGitHub(
-          file,
-          settings.githubToken,
-          settings.githubOwner,
-          settings.githubRepo,
-          settings.githubBranch
-        );
-      } catch (error) {
-        console.error("Erro ao fazer upload para o GitHub, usando base64 como fallback:", error);
-      }
+    if (file) {
+      const path = `themes/${Date.now()}_${file.name}`;
+      publicUrl = await uploadFile(file, path);
     }
 
-    const newThemeData: any = { ...restThemeData, imageUrl: publicUrl, user_id: user.id };
+    const newThemeData: any = { 
+      ...restThemeData, 
+      imageUrl: publicUrl, 
+      user_id: user.id,
+      created_at: new Date().toISOString()
+    };
     
     Object.keys(newThemeData).forEach(key => {
       if (newThemeData[key] === undefined) {
@@ -106,38 +99,23 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
     });
 
-    const docRef = await addDoc(collection(db, 'themes'), newThemeData);
-    
-    const newTheme: Theme = {
-        id: docRef.id,
-        name: newThemeData.name,
-        category: newThemeData.category as any,
-        imageUrl: newThemeData.imageUrl,
-        type: newThemeData.type,
-    };
-    
-    setThemes(prevThemes => [newTheme, ...prevThemes]);
+    await addDoc(collection(db, 'themes'), newThemeData);
   };
 
   const updateTheme = async (updatedTheme: Theme & { file?: File }) => {
     const { id, imageUrl, file, ...restThemeData } = updatedTheme;
     let publicUrl = imageUrl;
 
-    if (file && isGitHubConfigured(settings)) {
-      try {
-        publicUrl = await uploadToGitHub(
-          file,
-          settings.githubToken,
-          settings.githubOwner,
-          settings.githubRepo,
-          settings.githubBranch
-        );
-      } catch (error) {
-        console.error("Erro ao fazer upload para o GitHub, usando base64 como fallback:", error);
-      }
+    if (file) {
+      const path = `themes/${id}/${Date.now()}_${file.name}`;
+      publicUrl = await uploadFile(file, path);
     }
 
-    const updateData: any = { ...restThemeData, imageUrl: publicUrl };
+    const updateData: any = { 
+      ...restThemeData, 
+      imageUrl: publicUrl,
+      updated_at: new Date().toISOString()
+    };
     
     Object.keys(updateData).forEach(key => {
       if (updateData[key] === undefined) {
@@ -146,15 +124,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     });
 
     await updateDoc(doc(db, 'themes', id), updateData);
-    
-    setThemes(prevThemes =>
-      prevThemes.map(t => (t.id === updatedTheme.id ? { ...updatedTheme } : t))
-    );
   };
 
   const deleteTheme = async (themeId: string) => {
     await deleteDoc(doc(db, 'themes', themeId));
-    setThemes(prevThemes => prevThemes.filter(t => t.id !== themeId));
   };
 
   const addMugOrder = async (orderData: Omit<MugOrder, 'id' | 'createdAt' | 'status'>) => {
@@ -179,6 +152,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     <ThemeContext.Provider value={{ 
       themes, 
       mugOrders, 
+      loading,
       addTheme, 
       updateTheme, 
       deleteTheme,
@@ -186,7 +160,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       updateMugOrderStatus,
       deleteMugOrder
     }}>
-      {!loading && children}
+      {children}
     </ThemeContext.Provider>
   );
 };

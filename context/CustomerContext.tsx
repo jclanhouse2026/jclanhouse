@@ -2,23 +2,23 @@ import React, { createContext, useState, useContext, ReactNode, useEffect, useMe
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
 import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { uploadFile } from '../lib/storage';
+import { optimizeImage } from '../lib/imageUtils';
 import type { Customer, Address } from '../types';
 
-type CustomerData = Omit<Customer, 'id' | 'userId' | 'signupDate' | 'status'>;
+type CustomerData = Omit<Customer, 'id' | 'userId' | 'signupDate' | 'status'> & { file?: File };
 
 interface CustomerContextType {
   customers: Customer[];
   loading: boolean;
   customersForCurrentUser: Customer[];
   addCustomer: (customerData: CustomerData) => Promise<Customer>;
-  updateCustomer: (updatedCustomer: Customer) => Promise<void>;
-  updateCurrentCustomer: (userId: string, updates: Partial<Customer>) => Promise<void>;
+  updateCustomer: (updatedCustomer: Customer & { file?: File }) => Promise<void>;
+  updateCurrentCustomer: (userId: string, updates: Partial<Customer> & { file?: File }) => Promise<void>;
   deleteCustomer: (customerId: string) => Promise<void>;
 }
 
 const CustomerContext = createContext<CustomerContextType | undefined>(undefined);
-
-
 
 export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -60,11 +60,26 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
   const addCustomer = async (customerData: CustomerData): Promise<Customer> => {
     if (!user) throw new Error("User must be logged in to add a customer");
 
+    const { file, ...restData } = customerData;
     const newCustomerRef = doc(collection(db, 'customers'));
+    
+    let avatarUrl = restData.avatarUrl;
+    let photoURL = restData.photoURL;
+
+    if (file) {
+      const optimizedFile = await optimizeImage(file, 400, 400, 0.8);
+      const path = `customers/${newCustomerRef.id}/${Date.now()}_${optimizedFile.name}`;
+      const uploadedUrl = await uploadFile(optimizedFile, path);
+      avatarUrl = uploadedUrl;
+      photoURL = uploadedUrl;
+    }
+
     const newCustomer: Customer = {
-        ...customerData,
+        ...restData,
         id: newCustomerRef.id,
         userId: user.id,
+        avatarUrl,
+        photoURL,
         status: 'Ativo',
         signupDate: new Date().toISOString()
     };
@@ -73,33 +88,77 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     return newCustomer;
   };
 
-  const updateCustomer = async (updatedCustomer: Customer): Promise<void> => {
-    const customerRef = doc(db, 'customers', updatedCustomer.id);
-    await updateDoc(customerRef, { ...updatedCustomer });
+  const updateCustomer = async (updatedCustomer: Customer & { file?: File }): Promise<void> => {
+    const { file, id, ...restData } = updatedCustomer;
+    const customerRef = doc(db, 'customers', id);
+    
+    let avatarUrl = restData.avatarUrl;
+    let photoURL = restData.photoURL;
+
+    if (file) {
+      const optimizedFile = await optimizeImage(file, 400, 400, 0.8);
+      const path = `customers/${id}/${Date.now()}_${optimizedFile.name}`;
+      const uploadedUrl = await uploadFile(optimizedFile, path);
+      avatarUrl = uploadedUrl;
+      photoURL = uploadedUrl;
+    }
+
+    await updateDoc(customerRef, { 
+      ...restData,
+      avatarUrl,
+      photoURL
+    });
   };
 
-  const updateCurrentCustomer = async (userId: string, updates: Partial<Customer>): Promise<void> => {
+  const updateCurrentCustomer = async (userId: string, updates: Partial<Customer> & { file?: File }): Promise<void> => {
     const customer = customers.find(c => c.userId === userId);
+    const { file, ...restUpdates } = updates;
+
     if (customer) {
         const customerRef = doc(db, 'customers', customer.id);
-        await updateDoc(customerRef, updates);
+        let avatarUrl = restUpdates.avatarUrl;
+        let photoURL = restUpdates.photoURL;
+
+        if (file) {
+          const optimizedFile = await optimizeImage(file, 400, 400, 0.8);
+          const path = `customers/${customer.id}/${Date.now()}_${optimizedFile.name}`;
+          const uploadedUrl = await uploadFile(optimizedFile, path);
+          avatarUrl = uploadedUrl;
+          photoURL = uploadedUrl;
+        }
+
+        await updateDoc(customerRef, {
+          ...restUpdates,
+          avatarUrl: avatarUrl || customer.avatarUrl,
+          photoURL: photoURL || customer.photoURL
+        });
     } else {
         // If customer profile doesn't exist yet, create it
         const newCustomerRef = doc(collection(db, 'customers'));
+        let avatarUrl = restUpdates.avatarUrl;
+        let photoURL = restUpdates.photoURL;
+
+        if (file) {
+          const path = `customers/${newCustomerRef.id}/${Date.now()}_${file.name}`;
+          const uploadedUrl = await uploadFile(file, path);
+          avatarUrl = uploadedUrl;
+          photoURL = uploadedUrl;
+        }
+
         const newCustomer: Customer = {
             id: newCustomerRef.id,
             userId: userId,
-            fullName: updates.fullName || '',
-            email: updates.email || '',
-            phone: updates.phone || '',
-            cpf: updates.cpf,
-            dob: (updates as any).birthDate || updates.dob,
-            address: updates.address,
-            photoURL: updates.photoURL,
-            avatarUrl: updates.avatarUrl,
+            fullName: restUpdates.fullName || '',
+            email: restUpdates.email || '',
+            phone: restUpdates.phone || '',
+            cpf: restUpdates.cpf,
+            dob: (restUpdates as any).birthDate || restUpdates.dob,
+            address: restUpdates.address,
+            photoURL: photoURL,
+            avatarUrl: avatarUrl,
             status: 'Ativo',
             signupDate: new Date().toISOString(),
-            ...updates
+            ...restUpdates
         };
         await setDoc(newCustomerRef, newCustomer);
     }
