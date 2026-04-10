@@ -9,7 +9,8 @@ import {
   deleteDoc, 
   onSnapshot, 
   query, 
-  orderBy 
+  orderBy,
+  getDocs
 } from 'firebase/firestore';
 import { 
   Save, 
@@ -52,11 +53,16 @@ const AdminApostilaPage: React.FC<AdminApostilaPageProps> = ({ hideHeader = fals
   }, [settings]);
 
   useEffect(() => {
-    const q = query(collection(db, 'apostila_orders'), orderBy('created_at', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-    return () => unsubscribe();
+    const fetchOrders = async () => {
+      try {
+        const q = query(collection(db, 'apostila_orders'), orderBy('created_at', 'desc'));
+        const snapshot = await getDocs(q);
+        setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (error) {
+        console.error("Error fetching apostila orders:", error);
+      }
+    };
+    fetchOrders();
   }, []);
 
   const handleUpdateSettings = async () => {

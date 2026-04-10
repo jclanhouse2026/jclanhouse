@@ -3,8 +3,7 @@ import XCircleIcon from '../icons/XCircleIcon';
 import UploadIcon from '../icons/UploadIcon';
 import TrashIcon from '../icons/TrashIcon';
 import type { Theme, ThemeCategory } from '../../types';
-import { optimizeImage, fileToBase64 } from '../../lib/imageUtils';
-import { generateThemeNameFromImage, generateMugThemeInfoFromImage } from '../../services/geminiService';
+import { optimizeImage } from '../../lib/imageUtils';
 
 interface ThemeDraft {
   id: string;
@@ -12,8 +11,6 @@ interface ThemeDraft {
   previewUrl: string;
   name: string;
   category: ThemeCategory;
-  isGeneratingName: boolean;
-  userEditedName: boolean;
 }
 
 interface MultiThemeModalProps {
@@ -29,9 +26,7 @@ const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClos
       id: theme.id,
       previewUrl: theme.imageUrl,
       name: theme.name,
-      category: theme.category,
-      isGeneratingName: false,
-      userEditedName: true
+      category: theme.category
     }] : []
   );
   const [isSaving, setIsSaving] = useState(false);
@@ -52,63 +47,37 @@ const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClos
       // Create a temporary preview URL
       const previewUrl = URL.createObjectURL(file);
       
+      // Use filename as initial name (without extension)
+      const initialName = file.name.split('.').slice(0, -1).join('.') || 'Novo Tema';
+      
       const draft: ThemeDraft = {
         id: draftId,
         file,
         previewUrl,
-        name: 'Novo Tema',
-        category: 'UNISSEX',
-        isGeneratingName: true,
-        userEditedName: false
+        name: initialName,
+        category: 'UNISSEX'
       };
       newDrafts.push(draft);
     }
 
     setDrafts(prev => [...prev, ...newDrafts]);
 
-    // Optimize images and generate names asynchronously
+    // Optimize images asynchronously
     for (const draft of newDrafts) {
       try {
         // Optimize image
         const optimizedFile = await optimizeImage(draft.file!, 800, 1000, 0.8);
-        const base64 = await fileToBase64(optimizedFile);
         
-        // Update draft with optimized file and base64 preview
-        setDrafts(prev => prev.map(d => d.id === draft.id ? { ...d, file: optimizedFile, previewUrl: base64 } : d));
-
-        // Generate info based on type
-        if (type === 'caneca') {
-          const suggestedInfo = await generateMugThemeInfoFromImage(base64);
-          setDrafts(prev => prev.map(d => {
-            if (d.id === draft.id && !d.userEditedName) {
-              return { ...d, name: suggestedInfo.name, category: suggestedInfo.category, isGeneratingName: false };
-            }
-            return { ...d, isGeneratingName: false };
-          }));
-        } else {
-          const suggestedName = await generateThemeNameFromImage(base64);
-          setDrafts(prev => prev.map(d => {
-            if (d.id === draft.id && !d.userEditedName) {
-              return { ...d, name: suggestedName, isGeneratingName: false };
-            }
-            return { ...d, isGeneratingName: false };
-          }));
-        }
-
+        // Update draft with optimized file
+        setDrafts(prev => prev.map(d => d.id === draft.id ? { ...d, file: optimizedFile } : d));
       } catch (error) {
         console.error("Erro ao processar imagem:", error);
-        setDrafts(prev => prev.map(d => {
-          if (d.id === draft.id && !d.userEditedName) {
-            return { ...d, name: 'Novo Tema', isGeneratingName: false };
-          }
-          return { ...d, isGeneratingName: false };
-        }));
       }
     }
   };
 
   const handleNameChange = (id: string, newName: string) => {
-    setDrafts(prev => prev.map(d => d.id === id ? { ...d, name: newName, userEditedName: true } : d));
+    setDrafts(prev => prev.map(d => d.id === id ? { ...d, name: newName } : d));
   };
 
   const handleCategoryChange = (id: string, newCategory: ThemeCategory) => {
@@ -210,11 +179,6 @@ const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClos
                       
                       <div className="aspect-[4/5] w-full bg-slate-800 rounded-md mb-3 overflow-hidden relative">
                         <img src={draft.previewUrl} alt="Preview" className="w-full h-full object-cover" />
-                        {draft.isGeneratingName && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
-                          </div>
-                        )}
                       </div>
                       
                       <div className="space-y-2">
@@ -226,7 +190,6 @@ const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClos
                             onChange={e => handleNameChange(draft.id, e.target.value)} 
                             className="w-full p-2 bg-slate-800 rounded text-sm text-white border border-slate-600 focus:border-cyan-500 focus:outline-none" 
                             required 
-                            disabled={draft.isGeneratingName}
                           />
                         </div>
                         <div>

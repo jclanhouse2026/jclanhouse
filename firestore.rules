@@ -93,6 +93,18 @@ service cloud.firestore {
              data.status in ['pending', 'processing', 'completed', 'cancelled'];
     }
 
+    function isValidThemeOrder(data) {
+      return (data.userId == null || data.userId is string) &&
+             data.customerName is string && data.customerName.size() > 0 &&
+             data.customerPhone is string && data.customerPhone.size() > 0 &&
+             data.themeId is string &&
+             data.themeName is string &&
+             data.themeImageUrl is string &&
+             data.productType in ['caderneta', 'caneca', 'escolar'] &&
+             data.status in ['pending', 'completed'] &&
+             data.createdAt is string;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -205,10 +217,10 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    match /mug_orders/{orderId} {
+    match /theme_orders/{orderId} {
       allow read: if isAuthenticated() && (isDocOwner() || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if (request.resource.data.userId == null || (isAuthenticated() && request.resource.data.userId == request.auth.uid) || isAdmin()) && isValidThemeOrder(request.resource.data);
+      allow update: if isAuthenticated() && (isDocOwner() || isAdmin()) && isValidThemeOrder(request.resource.data);
       allow delete: if isAdmin();
     }
 

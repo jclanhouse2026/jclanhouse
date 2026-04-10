@@ -197,26 +197,28 @@ const CartPage: React.FC = () => {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-                        <div className="lg:col-span-2 bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-700 space-y-4">
+                        <div className="lg:col-span-2 bg-slate-800 rounded-xl p-4 sm:p-6 shadow-lg border border-slate-700 space-y-4">
                             {cartItems.map(item => (
-                                <div key={item.id} className="flex items-start gap-4 border-b border-slate-700 pb-4 last:border-b-0">
-                                    <img src={item.image} alt={item.name} className="w-24 h-24 rounded-md object-cover bg-white" />
-                                    <div className="flex-grow">
-                                        <h3 className="font-bold text-white">{item.name}</h3>
+                                <div key={item.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border-b border-slate-700 pb-4 last:border-b-0">
+                                    <img src={item.image} alt={item.name} className="w-20 h-20 sm:w-24 sm:h-24 rounded-md object-cover bg-white mx-auto sm:mx-0" />
+                                    <div className="flex-grow w-full text-center sm:text-left">
+                                        <h3 className="font-bold text-white text-base sm:text-lg">{item.name}</h3>
                                         <p className="text-sm text-slate-400">Preço: {formatCurrency(item.unitPrice)}</p>
                                          {item.customization?.text && <p className="text-xs text-slate-400 italic">"{item.customization.text}"</p>}
                                         {item.customization?.image && <p className="text-xs text-cyan-400">Com imagem anexada</p>}
                                     </div>
-                                    <div className="flex flex-col items-end gap-2">
+                                    <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center w-full sm:w-auto gap-4 sm:gap-2">
                                         <div className="flex items-center gap-2 bg-slate-700 rounded-md">
                                              <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-8 h-8 text-lg font-bold text-cyan-400">-</button>
                                             <span className="w-8 text-center text-md font-bold">{item.quantity}</span>
                                             <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="w-8 h-8 text-lg font-bold text-cyan-400">+</button>
                                         </div>
-                                        <p className="font-bold text-lg">{formatCurrency(item.totalPrice)}</p>
-                                        <button onClick={() => removeFromCart(item.id)} className="text-xs text-red-400 hover:underline">
-                                           Remover
-                                        </button>
+                                        <div className="text-right">
+                                            <p className="font-bold text-lg">{formatCurrency(item.totalPrice)}</p>
+                                            <button onClick={() => removeFromCart(item.id)} className="text-xs text-red-400 hover:underline">
+                                               Remover
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             ))}

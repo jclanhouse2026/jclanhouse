@@ -65,10 +65,10 @@ const AuthorizationRequestModal: React.FC<{
 const Step10_Finalize: React.FC = () => {
     const { 
         resumeData, setTemplate, setTemplateColor, setFontSize, setLineHeight, 
-        setAlignment, setFontTitle, setFontBody, resumeConfig, addResumeRequest 
+        setAlignment, setFontTitle, setFontBody, setSectionSpacing, resumeConfig, addResumeRequest 
     } = useResume();
     const navigate = useNavigate();
-    const { templates, colors, lineHeights, fontSizes } = resumeConfig;
+    const { templates, colors, lineHeights, fontSizes, sectionSpacings } = resumeConfig;
     
     const resumePreviewRef = useRef<HTMLDivElement>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -174,6 +174,22 @@ const Step10_Finalize: React.FC = () => {
                             {lineHeights.map(lh => <button key={lh.id} onClick={() => setLineHeight(lh.id as any)} className={`flex-1 py-2 text-xs font-semibold rounded-md ${resumeData.lineHeight === lh.id ? 'bg-cyan-500 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>{lh.name}</button>)}
                         </div>
                     </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-600">
+                    <label className="text-sm font-semibold text-slate-300 mb-2 block">Preenchimento da Página (Ajuste de Espaço Branco)</label>
+                    <div className="flex gap-2 flex-wrap">
+                        {sectionSpacings.map(ss => (
+                            <button 
+                                key={ss.id} 
+                                onClick={() => setSectionSpacing(ss.id)} 
+                                className={`flex-1 py-2 text-xs font-semibold rounded-md ${resumeData.sectionSpacing === ss.id ? 'bg-cyan-500 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+                            >
+                                {ss.name}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2">Use esta opção se o seu currículo tiver pouca informação e sobrar muito espaço em branco.</p>
                 </div>
             </div>
 

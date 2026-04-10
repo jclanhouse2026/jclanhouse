@@ -1,7 +1,7 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs } from 'firebase/firestore';
 import { uploadFile } from '../lib/storage';
 import { optimizeImage } from '../lib/imageUtils';
 import type { Customer, Address } from '../types';
@@ -25,7 +25,7 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchCustomers = useCallback(async () => {
     if (!user) {
       setCustomers([]);
       setLoading(false);
@@ -33,24 +33,26 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
 
     setLoading(true);
-    
-    const customersRef = collection(db, 'customers');
-    const q = user.role === 'admin' ? query(customersRef) : query(customersRef, where('userId', '==', user.id));
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const loadedCustomers: Customer[] = [];
-        querySnapshot.forEach((doc) => {
-            loadedCustomers.push({ id: doc.id, ...doc.data() } as Customer);
-        });
-        setCustomers(loadedCustomers);
-        setLoading(false);
-    }, (error) => {
-        console.error("Error fetching customers:", error);
-        setLoading(false);
-    });
-
-    return () => unsubscribe();
+    try {
+      const customersRef = collection(db, 'customers');
+      const q = user.role === 'admin' ? query(customersRef) : query(customersRef, where('userId', '==', user.id));
+      
+      const querySnapshot = await getDocs(q);
+      const loadedCustomers: Customer[] = [];
+      querySnapshot.forEach((doc) => {
+          loadedCustomers.push({ id: doc.id, ...doc.data() } as Customer);
+      });
+      setCustomers(loadedCustomers);
+    } catch (error) {
+      // console.error("Error fetching customers:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   const customersForCurrentUser = useMemo(() => {
       if (!user) return [];

@@ -10,10 +10,15 @@ const LocationIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-
 
 
 const TemplateCreative: React.FC<{ data: ResumeData, sidebarPosition?: 'left' | 'right' }> = ({ data, sidebarPosition = 'left' }) => {
-    const { profile, summary, experiences, education, courses, informatics, languages, templateColor, fontSize, lineHeight, title, alignment, fontTitle, fontBody } = data;
+    const { profile, summary, experiences, education, courses, informatics, languages, templateColor, fontSize, lineHeight, title, alignment, fontTitle, fontBody, sectionSpacing } = data;
     const color = templateColor || '#8b5cf6'; // purple-500
     const lineHeightClasses = { snug: 'leading-snug', relaxed: 'leading-relaxed', loose: 'leading-loose' };
     const alignmentClasses = { left: 'text-left', center: 'text-center', right: 'text-right', justify: 'text-justify' };
+
+    const spacingStyle = {
+        marginBottom: `${(sectionSpacing || 1.5) * 0.5}rem`,
+        marginTop: `${(sectionSpacing || 1.5) * 0.5}rem`
+    };
 
     const formattedAddress = [
         profile.address.street,
@@ -44,8 +49,8 @@ const TemplateCreative: React.FC<{ data: ResumeData, sidebarPosition?: 'left' | 
 
     const MainContent = () => (
         <>
-            {summary && <section><SectionTitle>Resumo Profissional</SectionTitle><p className={alignmentClasses[alignment || 'left']}>{summary}</p></section>}
-            {experiences.length > 0 && <section>
+            {summary && <section style={spacingStyle}><SectionTitle>Resumo Profissional</SectionTitle><p className={alignmentClasses[alignment || 'left']}>{summary}</p></section>}
+            {experiences.length > 0 && <section style={spacingStyle}>
                 <SectionTitle>Experiência Profissional</SectionTitle>
                 <div className="space-y-4">
                     {experiences.map(exp => (
@@ -60,7 +65,7 @@ const TemplateCreative: React.FC<{ data: ResumeData, sidebarPosition?: 'left' | 
                     ))}
                 </div>
             </section>}
-            {education.length > 0 && <section>
+            {education.length > 0 && <section style={spacingStyle}>
                 <SectionTitle>Formação Acadêmica</SectionTitle>
                 <div className="space-y-3">
                     {education.map(edu => (

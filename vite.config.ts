@@ -1,16 +1,36 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    const isProduction = mode === 'production';
+
     return {
-      server: {
+      server: !isProduction ? {
         port: 3000,
         host: '0.0.0.0',
         hmr: false
+      } : undefined,
+      plugins: [
+        react(),
+        tailwindcss(),
+      ],
+      build: {
+        outDir: 'dist',
+        emptyOutDir: true,
+        sourcemap: false,
+        minify: 'esbuild',
+        reportCompressedSize: false,
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              vendor: ['react', 'react-dom', 'react-router-dom'],
+            },
+          },
+        },
       },
-      plugins: [react()],
       define: {
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY),
         'process.env.GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY || process.env.GROQ_API_KEY),

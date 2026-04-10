@@ -24,7 +24,7 @@ export const ServiceSettingsProvider: React.FC<{ children: ReactNode }> = ({ chi
       } as ServiceSetting));
       setServiceSettings(data);
     } catch (error) {
-      console.error("Erro ao buscar configurações de serviço:", (error as Error).message);
+      // console.error("Erro ao buscar configurações de serviço:", (error as Error).message);
     } finally {
       setLoading(false);
     }

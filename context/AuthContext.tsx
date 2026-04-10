@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { auth, db, storage } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, query, where } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { uploadFile as storageUploadFile } from '../lib/storage';
 import { 
     signInWithEmailAndPassword, 
     createUserWithEmailAndPassword, 
@@ -72,38 +72,70 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                const docRef = doc(db, 'users', firebaseUser.uid);
-                const docSnap = await getDoc(docRef);
-                const isAdminEmail = firebaseUser.email ? ADMIN_EMAILS.includes(firebaseUser.email) : false;
-                
-                if (docSnap.exists()) {
-                    const profileData = docSnap.data();
-                    const currentRole = profileData.role || 'client';
+                try {
+                    const docRef = doc(db, 'users', firebaseUser.uid);
+                    const docSnap = await getDoc(docRef);
+                    const isAdminEmail = firebaseUser.email ? ADMIN_EMAILS.includes(firebaseUser.email) : false;
                     
-                    // Sync admin role if email is in ADMIN_EMAILS but role is not admin
-                    if (isAdminEmail && currentRole !== 'admin') {
-                        await updateDoc(docRef, { role: 'admin', is_premium: true, has_billing: true, pdv_access_status: 'authorized' });
-                        profileData.role = 'admin';
-                        profileData.is_premium = true;
-                        profileData.has_billing = true;
-                        profileData.pdv_access_status = 'authorized';
-                    }
+                    if (docSnap.exists()) {
+                        const profileData = docSnap.data();
+                        const currentRole = profileData.role || 'client';
+                        
+                        // Sync admin role if email is in ADMIN_EMAILS but role is not admin
+                        if (isAdminEmail && currentRole !== 'admin') {
+                            await updateDoc(docRef, { role: 'admin', is_premium: true, has_billing: true, pdv_access_status: 'authorized' });
+                            profileData.role = 'admin';
+                            profileData.is_premium = true;
+                            profileData.has_billing = true;
+                            profileData.pdv_access_status = 'authorized';
+                        }
 
+                        setUser({
+                            id: firebaseUser.uid,
+                            email: firebaseUser.email || '',
+                            name: profileData.name || 'Usuário',
+                            username: profileData.username,
+                            role: isAdminEmail ? 'admin' : currentRole,
+                            isPremium: isAdminEmail || profileData.is_premium || false,
+                            hasBilling: isAdminEmail || profileData.has_billing || false,
+                            avatarUrl: profileData.avatar_url,
+                            photoURL: profileData.photo_url || profileData.avatar_url,
+                            pdvAccessStatus: isAdminEmail ? 'authorized' : (profileData.pdv_access_status || 'none'),
+                            status: profileData.status || 'active',
+                        });
+                    } else {
+                        const defaultProfile: User = {
+                            id: firebaseUser.uid,
+                            email: firebaseUser.email || '',
+                            name: firebaseUser.displayName || 'Usuário',
+                            username: firebaseUser.email?.split('@')[0] || 'user',
+                            role: isAdminEmail ? 'admin' : 'client',
+                            isPremium: isAdminEmail,
+                            hasBilling: isAdminEmail,
+                            avatarUrl: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=User&background=0891b2&color=fff`,
+                            photoURL: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=User&background=0891b2&color=fff`,
+                            pdvAccessStatus: isAdminEmail ? 'authorized' : 'none',
+                            status: 'active',
+                        };
+                        
+                        await setDoc(docRef, {
+                            email: defaultProfile.email,
+                            username: defaultProfile.username,
+                            name: defaultProfile.name,
+                            avatar_url: defaultProfile.avatarUrl,
+                            role: defaultProfile.role,
+                            is_premium: defaultProfile.isPremium,
+                            has_billing: defaultProfile.hasBilling,
+                            pdv_access_status: defaultProfile.pdvAccessStatus,
+                            status: defaultProfile.status,
+                            created_at: new Date().toISOString()
+                        });
+                        setUser(defaultProfile);
+                    }
+                } catch (error) {
+                    // Fallback to basic user info if Firestore fails
+                    const isAdminEmail = firebaseUser.email ? ADMIN_EMAILS.includes(firebaseUser.email) : false;
                     setUser({
-                        id: firebaseUser.uid,
-                        email: firebaseUser.email || '',
-                        name: profileData.name || 'Usuário',
-                        username: profileData.username,
-                        role: isAdminEmail ? 'admin' : currentRole,
-                        isPremium: isAdminEmail || profileData.is_premium || false,
-                        hasBilling: isAdminEmail || profileData.has_billing || false,
-                        avatarUrl: profileData.avatar_url,
-                        photoURL: profileData.photo_url || profileData.avatar_url,
-                        pdvAccessStatus: isAdminEmail ? 'authorized' : (profileData.pdv_access_status || 'none'),
-                        status: profileData.status || 'active',
-                    });
-                } else {
-                    const defaultProfile: User = {
                         id: firebaseUser.uid,
                         email: firebaseUser.email || '',
                         name: firebaseUser.displayName || 'Usuário',
@@ -115,21 +147,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         photoURL: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=User&background=0891b2&color=fff`,
                         pdvAccessStatus: isAdminEmail ? 'authorized' : 'none',
                         status: 'active',
-                    };
-                    
-                    await setDoc(docRef, {
-                        email: defaultProfile.email,
-                        username: defaultProfile.username,
-                        name: defaultProfile.name,
-                        avatar_url: defaultProfile.avatarUrl,
-                        role: defaultProfile.role,
-                        is_premium: defaultProfile.isPremium,
-                        has_billing: defaultProfile.hasBilling,
-                        pdv_access_status: defaultProfile.pdvAccessStatus,
-                        status: defaultProfile.status,
-                        created_at: new Date().toISOString()
                     });
-                    setUser(defaultProfile);
                 }
                 setLoading(false);
             } else {
@@ -334,18 +352,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const uploadFile = async (file: File, path: string): Promise<string> => {
-        const MAX_SIZE = 2 * 1024 * 1024;
+        const MAX_SIZE = 5 * 1024 * 1024; // Increased to 5MB
         if (file.size > MAX_SIZE) {
-            throw new Error('O arquivo é muito grande. O limite é de 2MB.');
+            throw new Error('O arquivo é muito grande. O limite é de 5MB.');
         }
         
-        // Convert to base64 to bypass Firebase Storage issues
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = error => reject(error);
-        });
+        return await storageUploadFile(file, path);
     };
 
     const value = {

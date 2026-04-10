@@ -4,10 +4,15 @@ import type { ResumeData } from '../../../types';
 import { SafeImage } from '../../SafeImage';
 
 const TemplateSidebar: React.FC<{ data: ResumeData }> = ({ data }) => {
-    const { profile, summary, experiences, education, courses, informatics, languages, templateColor, fontSize, lineHeight, title, alignment, fontTitle, fontBody } = data;
+    const { profile, summary, experiences, education, courses, informatics, languages, templateColor, fontSize, lineHeight, title, alignment, fontTitle, fontBody, sectionSpacing } = data;
     const color = templateColor || '#2563eb'; // blue-600
     const lineHeightClasses = { snug: 'leading-snug', relaxed: 'leading-relaxed', loose: 'leading-loose' };
     const alignmentClasses = { left: 'text-left', center: 'text-center', right: 'text-right', justify: 'text-justify' };
+
+    const spacingStyle = {
+        marginBottom: `${(sectionSpacing || 1.5) * 0.5}rem`,
+        marginTop: `${(sectionSpacing || 1.5) * 0.5}rem`
+    };
 
     const formattedAddress = [
         profile.address.street,
@@ -37,12 +42,12 @@ const TemplateSidebar: React.FC<{ data: ResumeData }> = ({ data }) => {
                     {title && <h2 className="text-lg font-semibold text-gray-700" style={{ fontFamily: fontTitle || 'Inter' }}>{title}</h2>}
                 </header>
 
-                {summary && <section className="mb-6">
+                {summary && <section style={spacingStyle}>
                     <SectionTitle>Perfil</SectionTitle>
                     <p className={`text-gray-600 ${alignmentClasses[alignment || 'left']}`}>{summary}</p>
                 </section>}
 
-                {experiences.length > 0 && <section className="mb-6">
+                {experiences.length > 0 && <section style={spacingStyle}>
                     <SectionTitle>Experiência Profissional</SectionTitle>
                     <div className="space-y-4">
                         {experiences.map(exp => (
@@ -57,7 +62,7 @@ const TemplateSidebar: React.FC<{ data: ResumeData }> = ({ data }) => {
                     </div>
                 </section>}
                 
-                {education.length > 0 && <section>
+                {education.length > 0 && <section style={spacingStyle}>
                     <SectionTitle>Formação Acadêmica</SectionTitle>
                      <div className="space-y-4">
                         {education.map(edu => (
@@ -77,7 +82,7 @@ const TemplateSidebar: React.FC<{ data: ResumeData }> = ({ data }) => {
                     <SafeImage src={profile.photo} alt="Profile" className="w-24 h-24 rounded-full mx-auto mb-6 object-cover" />
                 )}
 
-                <section className="mb-6">
+                <section style={spacingStyle}>
                     <SectionTitle>Contato</SectionTitle>
                     <div className="text-sm space-y-1 text-gray-600">
                         {profile.email && <p><span className="font-semibold">Email:</span> {profile.email}</p>}
@@ -86,7 +91,7 @@ const TemplateSidebar: React.FC<{ data: ResumeData }> = ({ data }) => {
                     </div>
                 </section>
                 
-                {(hasInformaticsDetails || courses.length > 0 || languages.length > 0) && <section className="mb-6">
+                {(hasInformaticsDetails || courses.length > 0 || languages.length > 0) && <section style={spacingStyle}>
                     <SectionTitle>Habilidades</SectionTitle>
                     <ul className="text-sm space-y-1 text-gray-600 list-disc list-inside">
                         {hasInformaticsDetails && informaticsSkills.map(skill => <li key={skill}>{skill}</li>)}
@@ -95,7 +100,7 @@ const TemplateSidebar: React.FC<{ data: ResumeData }> = ({ data }) => {
                     </ul>
                 </section>}
 
-                {(profile.cnh.category !== 'Não possui' || profile.dob) && <section>
+                {(profile.cnh.category !== 'Não possui' || profile.dob) && <section style={spacingStyle}>
                     <SectionTitle>Detalhes Pessoais</SectionTitle>
                      <div className="text-sm space-y-1 text-gray-600">
                         {profile.dob && <p><span className="font-semibold">Nascimento:</span> {new Date(profile.dob + 'T00:00:00').toLocaleDateString('pt-BR')}</p>}

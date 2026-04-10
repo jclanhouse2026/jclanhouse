@@ -1,5 +1,6 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { useNotifications } from './NotificationContext';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, query, where, onSnapshot } from 'firebase/firestore';
 import type { ResumeData, Experience, Education, Language, Course, InformaticsData, ResumeConfig, Objective, TemplateOption, LineHeightOption, FontSizeOption, ResumeRequest } from '../types';
@@ -32,12 +33,19 @@ const initialFontSizes: FontSizeOption[] = [
     { id: 12, name: 'Grande' }
 ];
 
+const initialSectionSpacings = [
+    { id: 1, name: 'Pequeno' },
+    { id: 1.5, name: 'Médio' },
+    { id: 2, name: 'Grande' }
+];
+
 const initialResumeConfig: ResumeConfig = {
     templates: initialTemplates,
     colors: initialColors,
     lineHeights: initialLineHeights,
     objectives: initialObjectives,
     fontSizes: initialFontSizes,
+    sectionSpacings: initialSectionSpacings,
 };
 // --- FIM: Dados de Configuração Padrão ---
 
@@ -66,6 +74,7 @@ const initialResumeData: ResumeData = {
   alignment: 'left',
   fontTitle: 'Inter',
   fontBody: 'Inter',
+  sectionSpacing: 1.5,
 };
 
 interface ResumeContextType {
@@ -96,6 +105,7 @@ interface ResumeContextType {
   setAlignment: (alignment: ResumeData['alignment']) => void;
   setFontTitle: (font: string) => void;
   setFontBody: (font: string) => void;
+  setSectionSpacing: (spacing: number) => void;
   
   resumeConfig: ResumeConfig;
   updateResumeConfig: (newConfig: Partial<ResumeConfig>) => Promise<void>;
@@ -118,6 +128,7 @@ const ResumeContext = createContext<ResumeContextType | undefined>(undefined);
 
 export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const { addNotification } = useNotifications();
 
   const [resumeData, setResumeData] = useState<ResumeData>(initialResumeData);
   const [resumeConfig, setResumeConfig] = useState<ResumeConfig>(initialResumeConfig);
@@ -201,7 +212,7 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           setResumeConfig(docSnap.data().config);
         }
       } catch (error) {
-        console.error("Error fetching resume config, using fallback:", (error as Error).message);
+        // console.error("Error fetching resume config, using fallback:", (error as Error).message);
         setResumeConfig(initialResumeConfig);
       }
     };
@@ -209,18 +220,19 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
 
-  useEffect(() => {
+  const fetchResumeRequests = useCallback(async () => {
     if (!user) {
         setResumeRequests([]);
         return;
     }
 
-    const requestsRef = collection(db, 'resume_requests');
-    const q = user.role === 'admin'
-        ? query(requestsRef)
-        : query(requestsRef, where('user_id', '==', user.id));
+    try {
+        const requestsRef = collection(db, 'resume_requests');
+        const q = user.role === 'admin'
+            ? query(requestsRef)
+            : query(requestsRef, where('user_id', '==', user.id));
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const querySnapshot = await getDocs(q);
         const formattedData: ResumeRequest[] = querySnapshot.docs.map(doc => ({
             id: doc.id,
             userId: doc.data().user_id,
@@ -231,17 +243,19 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             resumeData: doc.data().resume_data,
         }));
         setResumeRequests(formattedData);
-    }, (error) => {
+    } catch (error) {
         try {
             handleFirestoreError(error, OperationType.LIST, 'resume_requests');
         } catch (e) {
             console.error("Erro ao buscar solicitações de currículo:", (e as Error).message);
             setResumeRequests([]);
         }
-    });
-
-    return () => unsubscribe();
+    }
   }, [user]);
+
+  useEffect(() => {
+    fetchResumeRequests();
+  }, [fetchResumeRequests]);
 
 
   const addResumeRequest = async (details: { userName: string; userWhatsapp: string; }): Promise<ResumeRequest> => {
@@ -266,7 +280,28 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             requestedAt: requestPayload.requested_at,
             resumeData: requestPayload.resume_data,
         };
-        // setResumeRequests(prev => [newRequest, ...prev]); // onSnapshot cuidará disso
+
+        // Notify Client
+        if (user) {
+          await addNotification(
+            user.id,
+            'Currículo Enviado!',
+            'Sua solicitação de currículo foi enviada com sucesso e será analisada em breve.',
+            'success'
+          );
+        }
+
+        // Notify Admin
+        const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
+        adminsSnapshot.docs.forEach(adminDoc => {
+          addNotification(
+            adminDoc.id,
+            'Nova Solicitação de Currículo',
+            `Uma nova solicitação de currículo foi enviada por ${details.userName}.`,
+            'info'
+          );
+        });
+
         return newRequest;
     } catch (error) {
         return handleFirestoreError(error, OperationType.CREATE, 'resume_requests');
@@ -275,8 +310,21 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const updateRequestStatus = async (id: string, status: 'pending' | 'authorized') => {
     try {
+        const request = resumeRequests.find(r => r.id === id);
         await updateDoc(doc(db, 'resume_requests', id), { status });
-        // setResumeRequests(prev => prev.map(req => (req.id === id ? { ...req, status } : req))); // onSnapshot cuidará disso
+        
+        if (request && request.userId) {
+          let title = 'Atualização do Currículo';
+          let message = `O status da sua solicitação de currículo foi alterado para: ${status === 'authorized' ? 'Autorizado' : 'Pendente'}.`;
+          let type: 'info' | 'success' = 'info';
+
+          if (status === 'authorized') {
+            message = 'Sua solicitação de currículo foi autorizada! Você já pode prosseguir com a finalização.';
+            type = 'success';
+          }
+
+          await addNotification(request.userId, title, message, type);
+        }
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `resume_requests/${id}`);
     }
@@ -399,6 +447,7 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const setAlignment = (alignment: ResumeData['alignment']) => setResumeData(prev => ({ ...prev, alignment }));
   const setFontTitle = (font: string) => setResumeData(prev => ({ ...prev, fontTitle: font }));
   const setFontBody = (font: string) => setResumeData(prev => ({ ...prev, fontBody: font }));
+  const setSectionSpacing = (spacing: number) => setResumeData(prev => ({ ...prev, sectionSpacing: spacing }));
 
   const saveSuggestion = async (type: 'role' | 'school' | 'course' | 'company', text: string, state?: string, city?: string) => {
     if (!text || text.length < 2) return;
@@ -478,7 +527,7 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       resumeData, updateTitle, updateProfile, updateAddress, updateCnh, updateSummary, addExperience, updateExperience,
       removeExperience, addEducation, updateEducation, removeEducation, addCourse, updateCourse, removeCourse,
       updateInformatics, setOrUpdateLanguage, addLanguage, updateLanguage, removeLanguage, setTemplate,
-      setTemplateColor, setFontSize, setLineHeight, setAlignment, setFontTitle, setFontBody,
+      setTemplateColor, setFontSize, setLineHeight, setAlignment, setFontTitle, setFontBody, setSectionSpacing,
       resumeConfig, updateResumeConfig,
       addResumeRequest, updateRequestStatus, deleteResumeRequest, getRequestsByUserId, getAllRequests, getRequestById,
       loadResumeIntoBuilder, resetResumeBuilder, importProfileData,

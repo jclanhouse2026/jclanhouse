@@ -2,15 +2,21 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import ShoppingCartIcon from '../components/icons/ShoppingCartIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import InfoIcon from '../components/icons/InfoIcon';
 import DocumentIcon from '../components/icons/DocumentIcon';
 import WaterDropIcon from '../components/icons/WaterDropIcon';
 import { useThemes } from '../context/ThemeContext';
 import { useServicePricing } from '../context/ServicePricingContext';
-import { useCart } from '../context/CartContext';
+import { useCompany } from '../context/CompanyContext';
 import { formatCurrency } from '../lib/formatters';
+import { generateOrderNumber } from '../lib/orderUtils';
+import ImageModal from '../components/ImageModal';
+import { Maximize2 } from 'lucide-react';
+import UserIcon from '../components/icons/UserIcon';
+import PhoneIcon from '../components/icons/PhoneIcon';
+import HashtagIcon from '../components/icons/HashtagIcon';
+import CheckCircleIcon from '../components/icons/CheckCircleIcon';
 
 const materialIcons: { [key: string]: React.ElementType } = {
     papel: DocumentIcon,
@@ -19,9 +25,9 @@ const materialIcons: { [key: string]: React.ElementType } = {
 
 const SchoolStickersPage: React.FC = () => {
     const { themeId } = useParams<{ themeId: string }>();
-    const { themes } = useThemes();
+    const { themes, addThemeOrder } = useThemes();
     const { pricing, loading: pricingLoading } = useServicePricing();
-    const { addToCart } = useCart();
+    const { companyInfo } = useCompany();
     const navigate = useNavigate();
     const { adesivos_escolares: stickersPricing } = pricing;
 
@@ -32,6 +38,11 @@ const SchoolStickersPage: React.FC = () => {
     const [studentName, setStudentName] = useState('');
     const [studentGrade, setStudentGrade] = useState('');
     const [studentSchool, setStudentSchool] = useState('');
+    const [motherName, setMotherName] = useState('');
+    const [motherPhone, setMotherPhone] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
+    const [isZoomOpen, setIsZoomOpen] = useState(false);
 
     const [selectedPackage, setSelectedPackage] = useState(stickersPricing.packages[1]);
     const [selectedMaterial, setSelectedMaterial] = useState(stickersPricing.materials[1]);
@@ -49,21 +60,41 @@ const SchoolStickersPage: React.FC = () => {
         return selectedPackage?.price || 0;
     }, [selectedPackage]);
     
-    const handleAddToCart = () => {
-        if (!selectedTheme || !selectedPackage || !selectedMaterial) return;
+    const handleAddToCart = async () => {
+        if (!selectedTheme || !selectedPackage || !selectedMaterial || !motherName || !motherPhone) return;
 
-        addToCart({
-            productId: `adesivos-${selectedTheme.id}`,
-            name: `Adesivos Escolares (${selectedPackage.name}) - Tema: ${selectedTheme.name}`,
-            image: selectedTheme.imageUrl,
-            quantity: 1,
-            unitPrice: totalPrice,
-            customization: {
-                text: `Nome: ${studentName || 'Não informado'}, Série: ${studentGrade || 'Não informado'}, Escola: ${studentSchool || 'Não informado'} | Material: ${selectedMaterial.name}`
-            }
-        });
+        setIsSubmitting(true);
+        try {
+            const orderNumber = generateOrderNumber();
+            const customizationDetails = `Nome: ${studentName || 'Não informado'}, Série: ${studentGrade || 'Não informado'}, Escola: ${studentSchool || 'Não informado'} | Pacote: ${selectedPackage.name} | Material: ${selectedMaterial.name}`;
 
-        navigate('/carrinho');
+            await addThemeOrder({
+                customerName: motherName,
+                customerPhone: motherPhone,
+                orderNumber: orderNumber,
+                themeId: selectedTheme.id,
+                themeName: selectedTheme.name,
+                themeImageUrl: selectedTheme.imageUrl,
+                productType: 'escolar',
+                customizationDetails: customizationDetails
+            });
+
+            setIsSuccess(true);
+
+            // Send WhatsApp message
+            const message = `Olá! Acabei de fazer um pedido de Adesivos Escolares no site.\n\n*Detalhes do Pedido:*\n- *Nome da Mãe:* ${motherName}\n- *Telefone:* ${motherPhone}\n- *Número do Pedido:* ${orderNumber || 'S/N'}\n- *Tema Escolhido:* ${selectedTheme.name}\n- *Detalhes:* ${customizationDetails}\n- *Valor Total:* ${formatCurrency(totalPrice)}\n\nPor favor, aguardo o retorno para prosseguir com a produção.`;
+            const whatsappUrl = `https://wa.me/${companyInfo.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+            
+            setTimeout(() => {
+                window.open(whatsappUrl, '_blank');
+            }, 2000);
+
+        } catch (error) {
+            console.error("Erro ao enviar pedido:", error);
+            alert("Erro ao enviar pedido. Tente novamente.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (pricingLoading) {
@@ -131,9 +162,12 @@ const SchoolStickersPage: React.FC = () => {
                                     JC LAN HOUSE
                                 </p>
                                 <div className="relative space-y-4">
-                                    <div className="bg-slate-200/80 rounded-lg p-4 flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-slate-300 rounded-md flex-shrink-0">
-                                            <img src={selectedTheme.imageUrl} alt={selectedTheme.name} className="w-full h-full object-cover rounded-md" />
+                                    <div className="bg-slate-200/80 rounded-lg p-4 flex items-center gap-4 group cursor-pointer" onClick={() => setIsZoomOpen(true)}>
+                                        <div className="w-12 h-12 bg-slate-300 rounded-md flex-shrink-0 relative overflow-hidden">
+                                            <img src={selectedTheme.imageUrl} alt={selectedTheme.name} className="w-full h-full object-cover rounded-md transition-transform group-hover:scale-110" />
+                                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <Maximize2 className="w-4 h-4 text-white" />
+                                            </div>
                                         </div>
                                         <div>
                                             <p className="font-bold text-lg break-all">{studentName || 'NOME DO ALUNO'}</p>
@@ -175,66 +209,125 @@ const SchoolStickersPage: React.FC = () => {
 
                         {/* Right Column: Options */}
                         <div className="space-y-8">
-                            <OptionSection number={1} title="IDENTIFICAÇÃO">
-                                <div className="bg-slate-800/50 p-4 rounded-lg space-y-3">
-                                    <input type="text" value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Nome Completo do Aluno" className="w-full bg-slate-700/80 p-3 rounded-md text-sm border border-slate-600 focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none"/>
-                                    <div className="flex gap-3">
-                                        <input type="text" value={studentGrade} onChange={(e) => setStudentGrade(e.target.value)} placeholder="Série / Ano" className="w-full bg-slate-700/80 p-3 rounded-md text-sm border border-slate-600 focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none"/>
-                                        <input type="text" value={studentSchool} onChange={(e) => setStudentSchool(e.target.value)} placeholder="Escola" className="w-full bg-slate-700/80 p-3 rounded-md text-sm border border-slate-600 focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none"/>
+                            {isSuccess ? (
+                                <div className="h-full flex flex-col items-center justify-center text-center space-y-4 py-12">
+                                    <div className="bg-green-500/20 p-4 rounded-full">
+                                        <CheckCircleIcon className="w-16 h-16 text-green-500" />
                                     </div>
+                                    <h2 className="text-3xl font-bold">Pedido Enviado!</h2>
+                                    <p className="text-slate-400">Seu pedido foi registrado com sucesso. Você será redirecionado para o WhatsApp em instantes...</p>
+                                    <button 
+                                        onClick={() => navigate('/temas-escolares')}
+                                        className="mt-6 text-indigo-400 font-bold hover:underline"
+                                    >
+                                        Voltar para Temas
+                                    </button>
                                 </div>
-                            </OptionSection>
-
-                            <OptionSection number={2} title="TEMA ESCOLHIDO">
-                               <div className="bg-slate-800/50 p-4 rounded-lg flex items-center gap-4">
-                                   <img src={selectedTheme.imageUrl} alt={selectedTheme.name} className="w-16 h-16 object-cover rounded-md flex-shrink-0" />
-                                   <div>
-                                      <p className="font-bold text-white text-lg">{selectedTheme.name}</p>
-                                      <p className="text-xs text-slate-400">Para alterar, volte à página anterior.</p>
-                                   </div>
-                               </div>
-                            </OptionSection>
-
-                            <OptionSection number={3} title="SELECIONE O PACOTE">
-                                 <div className="space-y-3">
-                                    {stickersPricing.packages.map((pkg: any) => (
-                                        <button key={pkg.id} onClick={() => setSelectedPackage(pkg)} className={`w-full flex justify-between items-center p-4 rounded-lg border-2 text-left transition-all duration-200 ${selectedPackage.id === pkg.id ? 'bg-indigo-600 border-indigo-500 shadow-lg' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}>
-                                            <div>
-                                                <p className={`font-semibold ${selectedPackage.id === pkg.id ? 'text-white' : 'text-slate-300'}`}>{pkg.name}</p>
-                                                <p className="text-xs text-slate-400">{pkg.description} {pkg.size && `• Tamanho: ${pkg.size}`}</p>
+                            ) : (
+                                <>
+                                    <OptionSection number={1} title="IDENTIFICAÇÃO">
+                                        <div className="bg-slate-800/50 p-4 rounded-lg space-y-3">
+                                            <input type="text" value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Nome Completo do Aluno" className="w-full bg-slate-700/80 p-3 rounded-md text-sm border border-slate-600 focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none"/>
+                                            <div className="flex gap-3">
+                                                <input type="text" value={studentGrade} onChange={(e) => setStudentGrade(e.target.value)} placeholder="Série / Ano" className="w-full bg-slate-700/80 p-3 rounded-md text-sm border border-slate-600 focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none"/>
+                                                <input type="text" value={studentSchool} onChange={(e) => setStudentSchool(e.target.value)} placeholder="Escola" className="w-full bg-slate-700/80 p-3 rounded-md text-sm border border-slate-600 focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none"/>
                                             </div>
-                                            <p className="font-bold text-lg">{formatCurrency(pkg.price)}</p>
-                                        </button>
-                                    ))}
-                                </div>
-                            </OptionSection>
+                                        </div>
+                                    </OptionSection>
 
-                            <OptionSection number={4} title="TIPO DE MATERIAL">
-                                <div className="grid grid-cols-2 gap-4">
-                                    {stickersPricing.materials.map((mat: any) => {
-                                        const Icon = materialIcons[mat.id] || DocumentIcon;
-                                        return (
-                                            <button key={mat.id} onClick={() => setSelectedMaterial(mat)} className={`p-4 rounded-lg border-2 text-center transition-all duration-200 ${selectedMaterial.id === mat.id ? 'bg-indigo-600 border-indigo-500 shadow-lg' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}>
-                                                <Icon className="w-6 h-6 mx-auto mb-2" />
-                                                <p className="font-semibold text-sm">{mat.name}</p>
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            </OptionSection>
+                                    <OptionSection number={2} title="TEMA ESCOLHIDO">
+                                    <div className="bg-slate-800/50 p-4 rounded-lg flex items-center gap-4">
+                                        <img src={selectedTheme.imageUrl} alt={selectedTheme.name} className="w-16 h-16 object-cover rounded-md flex-shrink-0" />
+                                        <div>
+                                            <p className="font-bold text-white text-lg">{selectedTheme.name}</p>
+                                            <p className="text-xs text-slate-400">Para alterar, volte à página anterior.</p>
+                                        </div>
+                                    </div>
+                                    </OptionSection>
 
-                            <button 
-                                onClick={handleAddToCart}
-                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg flex items-center justify-center gap-3 transition-colors"
-                            >
-                                <ShoppingCartIcon className="w-5 h-5" />
-                                ADICIONAR AO CARRINHO
-                            </button>
+                                    <OptionSection number={3} title="SELECIONE O PACOTE">
+                                        <div className="space-y-3">
+                                            {stickersPricing.packages.map((pkg: any) => (
+                                                <button key={pkg.id} onClick={() => setSelectedPackage(pkg)} className={`w-full flex justify-between items-center p-4 rounded-lg border-2 text-left transition-all duration-200 ${selectedPackage.id === pkg.id ? 'bg-indigo-600 border-indigo-500 shadow-lg' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}>
+                                                    <div>
+                                                        <p className={`font-semibold ${selectedPackage.id === pkg.id ? 'text-white' : 'text-slate-300'}`}>{pkg.name}</p>
+                                                        <p className="text-xs text-slate-400">{pkg.description} {pkg.size && `• Tamanho: ${pkg.size}`}</p>
+                                                    </div>
+                                                    <p className="font-bold text-lg">{formatCurrency(pkg.price)}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </OptionSection>
+
+                                    <OptionSection number={4} title="TIPO DE MATERIAL">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {stickersPricing.materials.map((mat: any) => {
+                                                const Icon = materialIcons[mat.id] || DocumentIcon;
+                                                return (
+                                                    <button key={mat.id} onClick={() => setSelectedMaterial(mat)} className={`p-4 rounded-lg border-2 text-center transition-all duration-200 ${selectedMaterial.id === mat.id ? 'bg-indigo-600 border-indigo-500 shadow-lg' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}>
+                                                        <Icon className="w-6 h-6 mx-auto mb-2" />
+                                                        <p className="font-semibold text-sm">{mat.name}</p>
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </OptionSection>
+
+                                    <OptionSection number={5} title="SEUS DADOS">
+                                        <div className="bg-slate-800/50 p-4 rounded-lg space-y-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-400 mb-1 flex items-center gap-2">
+                                                    <UserIcon className="w-3 h-3" /> Nome da Mãe / Responsável
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    value={motherName}
+                                                    onChange={(e) => setMotherName(e.target.value)}
+                                                    className="w-full bg-slate-700/80 border border-slate-600 rounded-md py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
+                                                    placeholder="Seu nome"
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-400 mb-1 flex items-center gap-2">
+                                                    <PhoneIcon className="w-3 h-3" /> WhatsApp
+                                                </label>
+                                                <input 
+                                                    type="tel" 
+                                                    value={motherPhone}
+                                                    onChange={(e) => setMotherPhone(e.target.value)}
+                                                    className="w-full bg-slate-700/80 border border-slate-600 rounded-md py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
+                                                    placeholder="(00) 00000-0000"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    </OptionSection>
+
+                                    <button 
+                                        onClick={handleAddToCart}
+                                        disabled={isSubmitting || !motherName || !motherPhone}
+                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg flex items-center justify-center gap-3 transition-colors disabled:opacity-50"
+                                    >
+                                        {isSubmitting ? (
+                                            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                                        ) : (
+                                            <>FINALIZAR E ENVIAR WHATSAPP</>
+                                        )}
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
             </main>
             <Footer />
+            <ImageModal 
+                isOpen={isZoomOpen} 
+                onClose={() => setIsZoomOpen(false)} 
+                imageUrl={selectedTheme.imageUrl} 
+                title={selectedTheme.name} 
+            />
         </div>
     );
 };

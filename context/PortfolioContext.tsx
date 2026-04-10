@@ -1,8 +1,9 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import type { PortfolioProduct, PortfolioImage } from '../types';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, writeBatch, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, writeBatch } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { useNotifications } from './NotificationContext';
 import { optimizeImage } from '../lib/imageUtils';
 import { uploadFile } from '../lib/storage';
 
@@ -18,43 +19,48 @@ const PortfolioContext = createContext<PortfolioContextType | undefined>(undefin
 
 export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const { sendNotificationToAll } = useNotifications();
   const [products, setProducts] = useState<PortfolioProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchPortfolio = useCallback(async () => {
     setLoading(true);
-    const productsRef = collection(db, 'portfolio_products');
-    const q = query(productsRef, orderBy('name', 'asc'));
+    try {
+      const productsRef = collection(db, 'portfolio_products');
+      const imagesRef = collection(db, 'portfolio_images');
+      const q = query(productsRef, orderBy('name', 'asc'));
 
-    const unsubscribeProducts = onSnapshot(productsRef, async (productsSnapshot) => {
-      try {
-        const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      const [productsSnapshot, imagesSnapshot] = await Promise.all([
+        getDocs(q),
+        getDocs(imagesRef)
+      ]);
 
-        const imagesSnapshot = await getDocs(collection(db, 'portfolio_images'));
-        const imagesData = imagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-        
-        const productsWithImages: PortfolioProduct[] = productsData.map(p => ({
-            id: p.id,
-            name: p.name,
-            images: imagesData.filter(img => img.product_id === p.id).map(img => ({ id: img.id, url: img.url })),
-            description: p.description,
-            originalPrice: p.original_price,
-            promoPrice: p.promo_price,
-            type: p.type,
-            categoryId: p.category_id,
-            subcategoryId: p.subcategory_id,
-        }));
-        
-        setProducts(productsWithImages);
-      } catch (error) {
-        console.error("Erro ao processar produtos do portfólio:", error);
-      } finally {
-        setLoading(false);
-      }
-    });
+      const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      const imagesData = imagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
-    return () => unsubscribeProducts();
+      const productsWithImages: PortfolioProduct[] = productsData.map(p => ({
+        id: p.id,
+        name: p.name,
+        images: imagesData.filter(img => img.product_id === p.id).map(img => ({ id: img.id, url: img.url })),
+        description: p.description,
+        originalPrice: p.original_price,
+        promoPrice: p.promo_price,
+        type: p.type,
+        categoryId: p.category_id,
+        subcategoryId: p.subcategory_id,
+      }));
+
+      setProducts(productsWithImages);
+    } catch (error) {
+      // console.error("Erro ao buscar portfólio:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchPortfolio();
+  }, [fetchPortfolio]);
 
   const addProduct = async (productData: Omit<PortfolioProduct, 'id'>) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar produto.");
@@ -99,6 +105,13 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
       }
       await batch.commit();
     }
+
+    // Notify all users about new product
+    await sendNotificationToAll(
+      'Novo Produto Disponível!',
+      `O produto "${productInfo.name}" acabou de chegar em nossa loja. Confira agora!`,
+      'success'
+    );
   };
 
   const updateProduct = async (updatedProduct: PortfolioProduct) => {

@@ -1,23 +1,20 @@
-import { fileToBase64 } from './imageUtils';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from './firebase';
 
 /**
- * Converts a file to base64 and returns it as a data URL.
- * This bypasses Firebase Storage and allows saving directly to Firestore.
+ * Uploads a file to Firebase Storage and returns the download URL.
  * @param file The file to upload
- * @param path The path in storage (ignored in this implementation)
- * @returns Promise<string> The base64 data URL
+ * @param path The path in storage
+ * @returns Promise<string> The download URL
  */
 export const uploadFile = async (file: File | Blob, path: string): Promise<string> => {
   try {
-    if (file instanceof File) {
-      return await fileToBase64(file);
-    } else {
-      // Convert Blob to File
-      const newFile = new File([file], "image.webp", { type: file.type });
-      return await fileToBase64(newFile);
-    }
+    const storageRef = ref(storage, path);
+    const snapshot = await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return downloadURL;
   } catch (error) {
-    console.error('Error converting file to base64:', error);
+    console.error('Error uploading file to Firebase Storage:', error);
     throw error;
   }
 };

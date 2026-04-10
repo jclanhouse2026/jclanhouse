@@ -5,6 +5,9 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useThemes } from '../context/ThemeContext';
 import { useCompany } from '../context/CompanyContext';
+import { generateOrderNumber } from '../lib/orderUtils';
+import ImageModal from '../components/ImageModal';
+import { Maximize2 } from 'lucide-react';
 import type { Theme } from '../types';
 import CheckCircleIcon from '../components/icons/CheckCircleIcon';
 import PhoneIcon from '../components/icons/PhoneIcon';
@@ -14,15 +17,15 @@ import HashtagIcon from '../components/icons/HashtagIcon';
 const MugOrderPage: React.FC = () => {
     const { themeId } = useParams<{ themeId: string }>();
     const navigate = useNavigate();
-    const { themes, addMugOrder } = useThemes();
+    const { themes, addThemeOrder } = useThemes();
     const { companyInfo } = useCompany();
     
     const [theme, setTheme] = useState<Theme | null>(null);
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
-    const [orderNumber, setOrderNumber] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [isZoomOpen, setIsZoomOpen] = useState(false);
 
     useEffect(() => {
         if (themeId) {
@@ -41,13 +44,15 @@ const MugOrderPage: React.FC = () => {
 
         setIsSubmitting(true);
         try {
-            await addMugOrder({
+            const orderNumber = generateOrderNumber();
+            await addThemeOrder({
                 customerName: name,
                 customerPhone: phone,
                 orderNumber: orderNumber,
                 themeId: theme.id,
                 themeName: theme.name,
-                themeImageUrl: theme.imageUrl
+                themeImageUrl: theme.imageUrl,
+                productType: 'caneca'
             });
 
             setIsSuccess(true);
@@ -81,8 +86,13 @@ const MugOrderPage: React.FC = () => {
                             {/* Theme Preview */}
                             <div className="bg-slate-900 p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-700">
                                 <h2 className="text-xl font-bold mb-6 text-cyan-400">Tema Selecionado</h2>
-                                <div className="aspect-square w-full max-w-[300px] rounded-xl overflow-hidden shadow-2xl border-4 border-slate-800">
-                                    <img src={theme.imageUrl} alt={theme.name} className="w-full h-full object-cover" />
+                                <div className="aspect-square w-full max-w-[300px] rounded-xl overflow-hidden shadow-2xl border-4 border-slate-800 group cursor-pointer relative" onClick={() => setIsZoomOpen(true)}>
+                                    <img src={theme.imageUrl} alt={theme.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <div className="bg-white/20 backdrop-blur-md p-3 rounded-full border border-white/30">
+                                            <Maximize2 className="w-6 h-6 text-white" />
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="mt-6 text-center">
                                     <p className="text-sm text-slate-400 uppercase tracking-widest font-bold">{theme.category}</p>
@@ -142,20 +152,6 @@ const MugOrderPage: React.FC = () => {
                                                 />
                                             </div>
 
-                                            <div>
-                                                <label className="block text-sm font-bold text-slate-400 mb-2 flex items-center gap-2">
-                                                    <HashtagIcon className="w-4 h-4" /> Número do Pedido (Opcional)
-                                                </label>
-                                                <input 
-                                                    type="text" 
-                                                    value={orderNumber}
-                                                    onChange={(e) => setOrderNumber(e.target.value)}
-                                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all"
-                                                    placeholder="Ex: 12345"
-                                                />
-                                                <p className="text-[10px] text-slate-500 mt-1 italic">Caso já tenha feito o pagamento ou tenha um número de referência.</p>
-                                            </div>
-
                                             <button 
                                                 type="submit"
                                                 disabled={isSubmitting}
@@ -176,6 +172,12 @@ const MugOrderPage: React.FC = () => {
                 </div>
             </main>
             <Footer />
+            <ImageModal 
+                isOpen={isZoomOpen} 
+                onClose={() => setIsZoomOpen(false)} 
+                imageUrl={theme.imageUrl} 
+                title={theme.name} 
+            />
         </div>
     );
 };

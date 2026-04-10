@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { db } from '../lib/firebase';
-import { collection, doc, onSnapshot, query, getDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, getDoc, getDocs } from 'firebase/firestore';
 
 interface ApostilaSettings {
   id: string;
@@ -59,28 +59,33 @@ export const ApostilaProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribeSettings = onSnapshot(doc(db, 'apostila_settings', 'default'), (doc) => {
-      if (doc.exists()) {
-        setSettings({ id: doc.id, ...doc.data() } as ApostilaSettings);
-      } else {
-        setSettings({ id: 'default', ...defaultSettings });
-      }
-      setLoading(false);
-    });
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch Settings
+        const settingsDoc = await getDoc(doc(db, 'apostila_settings', 'default'));
+        if (settingsDoc.exists()) {
+          setSettings({ id: settingsDoc.id, ...settingsDoc.data() } as ApostilaSettings);
+        } else {
+          setSettings({ id: 'default', ...defaultSettings });
+        }
 
-    const unsubscribeColors = onSnapshot(collection(db, 'apostila_colors'), (snapshot) => {
-      if (snapshot.empty) {
-        setColors(defaultColors);
-      } else {
-        const colorsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ApostilaColor));
-        setColors(colorsData);
+        // Fetch Colors
+        const colorsSnapshot = await getDocs(collection(db, 'apostila_colors'));
+        if (colorsSnapshot.empty) {
+          setColors(defaultColors);
+        } else {
+          const colorsData = colorsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ApostilaColor));
+          setColors(colorsData);
+        }
+      } catch (error) {
+        // console.error("Erro ao buscar dados de apostila:", error);
+      } finally {
+        setLoading(false);
       }
-    });
-
-    return () => {
-      unsubscribeSettings();
-      unsubscribeColors();
     };
+
+    fetchData();
   }, []);
 
   return (

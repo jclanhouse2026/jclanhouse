@@ -96,7 +96,7 @@ export const HomeSettingsProvider: React.FC<{ children: ReactNode }> = ({ childr
                 setSettings(initialSettings);
             }
         } catch (error) {
-            console.error("Exceção ao buscar configurações da home:", (error as Error).message);
+        // console.error("Exceção ao buscar configurações da home:", (error as Error).message);
             setSettings(initialSettings);
         } finally {
             setLoading(false);

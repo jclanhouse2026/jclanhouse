@@ -37,7 +37,7 @@ export const PrinterProvider: React.FC<{ children: ReactNode }> = ({ children })
         } as Printer));
         setPrinters(data);
       } catch (error) {
-        console.error("Erro ao buscar impressoras:", (error as Error).message);
+        // console.error("Erro ao buscar impressoras:", (error as Error).message);
       }
     };
     fetchPrinters();

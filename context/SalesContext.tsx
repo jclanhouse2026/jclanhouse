@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, updateDoc, doc, deleteDoc, query, orderBy, onSnapshot, where } from 'firebase/firestore';
@@ -41,18 +41,19 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const { user } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
 
-  useEffect(() => {
+  const fetchSales = useCallback(async () => {
     if (!user) {
         setSales([]);
         return;
     }
 
-    const salesRef = collection(db, 'sales');
-    const q = user.role === 'admin'
-        ? query(salesRef, orderBy('date_time', 'desc'))
-        : query(salesRef, where('user_id', '==', user.id), orderBy('date_time', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    try {
+        const salesRef = collection(db, 'sales');
+        const q = user.role === 'admin'
+            ? query(salesRef, orderBy('date_time', 'desc'))
+            : query(salesRef, where('user_id', '==', user.id), orderBy('date_time', 'desc'));
+        
+        const querySnapshot = await getDocs(q);
         const formattedData = querySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
@@ -69,17 +70,19 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             };
         });
         setSales(formattedData);
-    }, (error) => {
+    } catch (error) {
         try {
             handleFirestoreError(error, OperationType.LIST, 'sales');
         } catch (e) {
             console.error("Erro ao buscar histórico de vendas:", (e as Error).message);
             setSales([]);
         }
-    });
-
-    return () => unsubscribe();
+    }
   }, [user]);
+
+  useEffect(() => {
+    fetchSales();
+  }, [fetchSales]);
 
   const salesForCurrentUser = useMemo(() => {
     if (!user) return [];

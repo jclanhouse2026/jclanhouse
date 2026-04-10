@@ -7,12 +7,12 @@ import PencilIcon from '../../components/icons/PencilIcon';
 import ClipboardListIcon from '../../components/icons/ClipboardListIcon';
 import CheckIcon from '../../components/icons/CheckIcon';
 import { useThemes } from '../../context/ThemeContext';
-import type { Theme, MugOrder } from '../../types';
+import type { Theme, ThemeOrder } from '../../types';
 import MultiThemeModal from '../../components/admin/MultiThemeModal';
 import ConfirmModal from '../../components/admin/ConfirmModal';
 
 const AdminMugThemesPage: React.FC = () => {
-    const { themes, mugOrders, addTheme, updateTheme, deleteTheme, updateMugOrderStatus, deleteMugOrder } = useThemes();
+    const { themes, themeOrders, addTheme, updateTheme, deleteTheme, updateThemeOrderStatus, deleteThemeOrder } = useThemes();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
     const [filterCategory, setFilterCategory] = useState<string>('TODOS');
@@ -23,6 +23,7 @@ const AdminMugThemesPage: React.FC = () => {
     const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, type: 'single' | 'multiple' | 'order', id?: string}>({ isOpen: false, type: 'single' });
 
     const mugThemes = themes.filter(t => t.type === 'caneca');
+    const mugOrdersList = themeOrders.filter(o => o.productType === 'caneca');
     const categories = Array.from(new Set(mugThemes.map(t => t.category))).sort();
 
     const filteredThemes = filterCategory === 'TODOS' 
@@ -61,7 +62,7 @@ const AdminMugThemesPage: React.FC = () => {
             }
             setSelectedThemes([]);
         } else if (confirmModal.type === 'order' && confirmModal.id) {
-            await deleteMugOrder(confirmModal.id);
+            await deleteThemeOrder(confirmModal.id);
         }
         setConfirmModal({ isOpen: false, type: 'single' });
     };
@@ -137,9 +138,9 @@ const AdminMugThemesPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                         <ClipboardListIcon className="w-4 h-4" />
                         Pedidos Recebidos
-                        {mugOrders.filter(o => o.status === 'pending').length > 0 && (
+                        {mugOrdersList.filter(o => o.status === 'pending').length > 0 && (
                             <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                                {mugOrders.filter(o => o.status === 'pending').length}
+                                {mugOrdersList.filter(o => o.status === 'pending').length}
                             </span>
                         )}
                     </div>
@@ -236,14 +237,14 @@ const AdminMugThemesPage: React.FC = () => {
                 </>
             ) : (
                 <div className="space-y-4">
-                    {mugOrders.length === 0 ? (
+                    {mugOrdersList.length === 0 ? (
                         <div className="text-center py-20 bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-700">
                             <ClipboardListIcon className="w-12 h-12 text-slate-600 mx-auto mb-4" />
                             <p className="text-slate-400 font-medium">Nenhum pedido recebido ainda.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-4">
-                            {mugOrders.map(order => (
+                            {mugOrdersList.map(order => (
                                 <div key={order.id} className={`bg-slate-800 p-4 rounded-xl border transition-all ${order.status === 'pending' ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-slate-700'}`}>
                                     <div className="flex flex-col md:flex-row gap-6">
                                         <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 border border-slate-700">
@@ -270,7 +271,7 @@ const AdminMugThemesPage: React.FC = () => {
                                             <div className="flex items-center justify-end gap-2">
                                                 {order.status === 'pending' && (
                                                     <button 
-                                                        onClick={() => updateMugOrderStatus(order.id, 'completed')}
+                                                        onClick={() => updateThemeOrderStatus(order.id, 'completed')}
                                                         className="bg-green-600 text-white p-2 rounded-lg hover:bg-green-700 transition-colors"
                                                         title="Marcar como Concluído"
                                                     >

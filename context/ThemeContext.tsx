@@ -1,79 +1,75 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import type { Theme, MugOrder } from '../types';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
+import type { Theme, ThemeOrder } from '../types';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { useNotifications } from './NotificationContext';
 import { uploadFile } from '../lib/storage';
 
 interface ThemeContextType {
   themes: Theme[];
-  mugOrders: MugOrder[];
+  themeOrders: ThemeOrder[];
   loading: boolean;
   addTheme: (theme: Omit<Theme, 'id'> & { file?: File }) => Promise<void>;
   updateTheme: (theme: Theme & { file?: File }) => Promise<void>;
   deleteTheme: (themeId: string) => Promise<void>;
-  addMugOrder: (order: Omit<MugOrder, 'id' | 'createdAt' | 'status'>) => Promise<string>;
-  updateMugOrderStatus: (orderId: string, status: 'pending' | 'completed') => Promise<void>;
-  deleteMugOrder: (orderId: string) => Promise<void>;
+  addThemeOrder: (order: Omit<ThemeOrder, 'id' | 'createdAt' | 'status'>) => Promise<string>;
+  updateThemeOrderStatus: (orderId: string, status: 'pending' | 'completed') => Promise<void>;
+  deleteThemeOrder: (orderId: string) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const { addNotification, sendNotificationToAll } = useNotifications();
   const [themes, setThemes] = useState<Theme[]>([]);
-  const [mugOrders, setMugOrders] = useState<MugOrder[]>([]);
+  const [themeOrders, setThemeOrders] = useState<ThemeOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchThemes = useCallback(async () => {
     setLoading(true);
+    try {
+      const snapshot = await getDocs(collection(db, 'themes'));
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Theme));
+      setThemes(data);
+    } catch (error) {
+      // console.error("Erro ao buscar temas:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchThemes();
     
-    // Listen for themes
-    const themesUnsubscribe = onSnapshot(
-      collection(db, 'themes'),
-      (snapshot) => {
-        const data = snapshot.docs.map(doc => ({
+    const fetchThemeOrders = async () => {
+      if (!user) {
+        setThemeOrders([]);
+        return;
+      }
+      
+      try {
+        const ordersQuery = user.role === 'admin' 
+          ? query(collection(db, 'theme_orders'), orderBy('createdAt', 'desc'))
+          : query(collection(db, 'theme_orders'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+          
+        const snapshot = await getDocs(ordersQuery);
+        const orders = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
-        } as Theme));
-        setThemes(data);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Erro ao buscar temas:", error);
-        setLoading(false);
+        } as ThemeOrder));
+        setThemeOrders(orders);
+      } catch (error) {
+        console.error("Erro ao buscar pedidos de temas:", error);
       }
-    );
-
-    // Listen for mug orders
-    let ordersUnsubscribe = () => {};
-    if (user) {
-      const ordersQuery = user.role === 'admin' 
-        ? query(collection(db, 'mug_orders'), orderBy('createdAt', 'desc'))
-        : query(collection(db, 'mug_orders'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
-        
-      ordersUnsubscribe = onSnapshot(
-        ordersQuery,
-        (snapshot) => {
-          const orders = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          } as MugOrder));
-          setMugOrders(orders);
-        },
-        (error) => {
-          console.error("Erro ao buscar pedidos de canecas:", error);
-        }
-      );
-    } else {
-      setMugOrders([]);
-    }
-
-    return () => {
-      themesUnsubscribe();
-      ordersUnsubscribe();
     };
-  }, [user]);
+
+    fetchThemeOrders();
+  }, [user, fetchThemes]);
 
   const addTheme = async (themeData: Omit<Theme, 'id'> & { file?: File }) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar tema.");
@@ -99,7 +95,14 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
     });
 
-    await addDoc(collection(db, 'themes'), newThemeData);
+    const docRef = await addDoc(collection(db, 'themes'), newThemeData);
+
+    // Notify all users about new theme
+    await sendNotificationToAll(
+      'Novo Tema Adicionado!',
+      `Um novo tema "${themeData.name}" foi adicionado à categoria ${themeData.category}. Confira agora!`,
+      'info'
+    );
   };
 
   const updateTheme = async (updatedTheme: Theme & { file?: File }) => {
@@ -130,35 +133,74 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     await deleteDoc(doc(db, 'themes', themeId));
   };
 
-  const addMugOrder = async (orderData: Omit<MugOrder, 'id' | 'createdAt' | 'status'>) => {
+  const addThemeOrder = async (orderData: Omit<ThemeOrder, 'id' | 'createdAt' | 'status'>) => {
     const newOrder = {
       ...orderData,
+      userId: user ? user.id : null, // Save userId if logged in
       status: 'pending',
       createdAt: new Date().toISOString()
     };
-    const docRef = await addDoc(collection(db, 'mug_orders'), newOrder);
+    const docRef = await addDoc(collection(db, 'theme_orders'), newOrder);
+
+    // Notify Client
+    if (user) {
+      await addNotification(
+        user.id,
+        'Pedido de Personalização Recebido!',
+        `Seu pedido de ${orderData.productType} com o tema "${orderData.themeName}" foi recebido.`,
+        'success'
+      );
+    }
+
+    // Notify Admin
+    const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
+    adminsSnapshot.docs.forEach(adminDoc => {
+      addNotification(
+        adminDoc.id,
+        'Novo Pedido de Personalização',
+        `${orderData.customerName} solicitou um(a) ${orderData.productType} (${orderData.themeName}).`,
+        'info'
+      );
+    });
+
     return docRef.id;
   };
 
-  const updateMugOrderStatus = async (orderId: string, status: 'pending' | 'completed') => {
-    await updateDoc(doc(db, 'mug_orders', orderId), { status });
+  const updateThemeOrderStatus = async (orderId: string, status: 'pending' | 'completed') => {
+    try {
+      const order = themeOrders.find(o => o.id === orderId);
+      await updateDoc(doc(db, 'theme_orders', orderId), { status });
+      
+      if (order && order.userId) {
+        if (status === 'completed') {
+          await addNotification(
+            order.userId,
+            'Personalização Concluída!',
+            `Seu pedido de ${order.productType} (${order.themeName}) está pronto!`,
+            'success'
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar status do pedido de tema:", error);
+    }
   };
 
-  const deleteMugOrder = async (orderId: string) => {
-    await deleteDoc(doc(db, 'mug_orders', orderId));
+  const deleteThemeOrder = async (orderId: string) => {
+    await deleteDoc(doc(db, 'theme_orders', orderId));
   };
 
   return (
     <ThemeContext.Provider value={{ 
       themes, 
-      mugOrders, 
+      themeOrders, 
       loading,
       addTheme, 
       updateTheme, 
       deleteTheme,
-      addMugOrder,
-      updateMugOrderStatus,
-      deleteMugOrder
+      addThemeOrder,
+      updateThemeOrderStatus,
+      deleteThemeOrder
     }}>
       {children}
     </ThemeContext.Provider>

@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import LogoutIcon from './icons/LogoutIcon';
 import UserIcon from './icons/UserIcon';
 import DashboardIcon from './icons/DashboardIcon';
+import NotificationBell from './NotificationBell';
 
 const Header: React.FC = () => {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -43,12 +44,8 @@ const Header: React.FC = () => {
               
               {user ? (
                 <>
-                  {/* FIX: Changed condition to only show "Meu Painel" for the 'client' role. The 'pdv_user' role does not exist and moderators have a different panel. */}
                   {user.role === 'client' && <Link to="/cliente" className="text-gray-300 hover:bg-slate-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Meu Painel</Link>}
-                  
-                  {/* FIX: Replaced non-existent 'pdv_user' role with 'moderator' to correctly link to the PDV dashboard. */}
                   {user.role === 'moderator' && <Link to="/pdv" className="bg-cyan-500 text-white px-3 py-2 rounded-md text-sm font-bold hover:bg-cyan-600 transition-colors">Voltar ao PDV</Link>}
-
                   {user.role === 'admin' && (
                     <>
                       <Link to="/admin" className="text-gray-300 hover:bg-slate-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Painel Admin</Link>
@@ -67,17 +64,21 @@ const Header: React.FC = () => {
                  </>
               )}
 
-              <Link to="/carrinho" className="relative text-gray-300 hover:text-white p-2 rounded-full hover:bg-slate-700">
-                <ShoppingCartIcon className="w-6 h-6" />
-                {totalItems > 0 && (
-                   <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                     {totalItems}
-                   </span>
-                )}
-              </Link>
+              <div className="flex items-center gap-2">
+                {user && <NotificationBell />}
+                <Link to="/carrinho" className="relative text-gray-300 hover:text-white p-2 rounded-full hover:bg-slate-700">
+                  <ShoppingCartIcon className="w-6 h-6" />
+                  {totalItems > 0 && (
+                    <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                      {totalItems}
+                    </span>
+                  )}
+                </Link>
+              </div>
             </div>
           </div>
-          <div className="-mr-2 flex md:hidden">
+          <div className="-mr-2 flex md:hidden items-center">
+            {user && <NotificationBell />}
             <Link to="/carrinho" className="relative text-gray-300 hover:text-white p-2 rounded-full hover:bg-slate-700 mr-2">
                 <ShoppingCartIcon className="w-6 h-6" />
                 {totalItems > 0 && (

@@ -289,6 +289,7 @@ export interface ResumeData {
   alignment: 'left' | 'center' | 'right' | 'justify';
   fontTitle: string;
   fontBody: string;
+  sectionSpacing: number;
 }
 
 export interface Suggestion {
@@ -329,6 +330,7 @@ export interface ResumeConfig {
     lineHeights: LineHeightOption[];
     objectives: Objective[];
     fontSizes: FontSizeOption[];
+    sectionSpacings: { id: number; name: string }[];
 }
 
 export interface ResumeRequest {
@@ -350,14 +352,17 @@ export interface Printer {
   isDefault: boolean;
 }
 
-export interface MugOrder {
+export interface ThemeOrder {
   id: string;
+  userId?: string;
   customerName: string;
   customerPhone: string;
   orderNumber: string;
   themeId: string;
   themeName: string;
   themeImageUrl: string;
+  productType: 'caneca' | 'caderneta' | 'escolar';
+  customizationDetails?: string;
   status: 'pending' | 'completed';
   createdAt: string;
 }

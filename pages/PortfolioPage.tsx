@@ -43,29 +43,29 @@ const PortfolioPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-8">
+          <div className="flex flex-col lg:flex-row gap-8">
               {/* Sidebar de Filtros */}
-              <aside className="w-full md:w-64 flex-shrink-0">
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 sticky top-24">
-                      <h3 className="font-bold text-white mb-4">Categorias</h3>
-                      <ul className="space-y-1">
-                          <li>
-                              <button onClick={() => setActiveFilter({type: 'all', id: null})} className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${getFilterClass('all', null)}`}>
+              <aside className="w-full lg:w-64 flex-shrink-0">
+                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 lg:sticky lg:top-24">
+                      <h3 className="font-bold text-white mb-4 hidden lg:block">Categorias</h3>
+                      <ul className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 no-scrollbar">
+                          <li className="flex-shrink-0 lg:flex-shrink">
+                              <button onClick={() => setActiveFilter({type: 'all', id: null})} className={`whitespace-nowrap w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${getFilterClass('all', null)}`}>
                                   Mostrar Todos
                               </button>
                           </li>
-                          <li>
-                              <Link to="/temas-canecas" className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-400 hover:text-white hover:bg-slate-700/50 block">
+                          <li className="flex-shrink-0 lg:flex-shrink">
+                              <Link to="/temas-canecas" className="whitespace-nowrap w-full text-left px-3 py-2 rounded-md text-sm text-slate-400 hover:text-white hover:bg-slate-700/50 block">
                                   Temas de Caneca
                               </Link>
                           </li>
                           {categories.map(category => (
-                              <li key={category.id}>
-                                  <button onClick={() => setActiveFilter({type: 'category', id: category.id})} className={`w-full text-left px-3 py-2 rounded-md text-sm font-semibold transition-colors ${getFilterClass('category', category.id)}`}>
+                              <li key={category.id} className="flex-shrink-0 lg:flex-shrink">
+                                  <button onClick={() => setActiveFilter({type: 'category', id: category.id})} className={`whitespace-nowrap w-full text-left px-3 py-2 rounded-md text-sm font-semibold transition-colors ${getFilterClass('category', category.id)}`}>
                                       {category.name}
                                   </button>
                                   {category.subcategories.length > 0 && (
-                                      <ul className="pl-4 mt-1 space-y-1 border-l border-slate-700 ml-2">
+                                      <ul className="hidden lg:block pl-4 mt-1 space-y-1 border-l border-slate-700 ml-2">
                                           {category.subcategories.map(sub => (
                                               <li key={sub.id}>
                                                   <button onClick={() => setActiveFilter({type: 'subcategory', id: sub.id})} className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors ${getFilterClass('subcategory', sub.id)}`}>

@@ -56,10 +56,10 @@ const HomePage: React.FC = () => {
             <div className="items-center flex flex-wrap">
               <div className="w-full lg:w-8/12 px-4 ml-auto mr-auto text-center">
                 <div>
-                  <h1 className="text-white font-semibold text-4xl md:text-5xl">
+                  <h1 className="text-white font-semibold text-3xl sm:text-4xl md:text-5xl lg:text-6xl leading-tight">
                     {hero.title}
                   </h1>
-                  <p className="mt-4 text-base md:text-lg text-slate-300">
+                  <p className="mt-4 text-sm sm:text-base md:text-lg text-slate-300 max-w-xl mx-auto">
                     {hero.subtitle}
                   </p>
                   <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -93,25 +93,25 @@ const HomePage: React.FC = () => {
                     <span className="bg-cyan-500/20 text-cyan-400 text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest mb-4 inline-block">
                       NOVIDADE
                     </span>
-                    <h2 className="text-4xl md:text-5xl font-black text-white leading-tight">
+                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-tight">
                       {settings.mugThemesBanner.title.split('Canecas')[0]}
                       <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Canecas</span>
                       {settings.mugThemesBanner.title.split('Canecas')[1]}
                     </h2>
-                    <p className="text-slate-400 mt-6 text-lg leading-relaxed">
+                    <p className="text-slate-400 mt-4 sm:text-lg leading-relaxed">
                       {settings.mugThemesBanner.subtitle}
                     </p>
-                    <div className="mt-10 flex flex-wrap gap-4">
+                    <div className="mt-8 flex flex-wrap gap-4">
                       <Link 
                         to={settings.mugThemesBanner.link} 
-                        className="bg-cyan-500 text-white font-black py-4 px-10 rounded-2xl hover:bg-cyan-600 transition-all shadow-xl shadow-cyan-500/20 transform hover:scale-105 active:scale-95"
+                        className="w-full sm:w-auto text-center bg-cyan-500 text-white font-black py-4 px-10 rounded-2xl hover:bg-cyan-600 transition-all shadow-xl shadow-cyan-500/20 transform hover:scale-105 active:scale-95"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {settings.mugThemesBanner.buttonText}
                       </Link>
                     </div>
                   </div>
-                  <div className="w-full lg:w-1/2 grid grid-cols-2 gap-4">
+                  <div className="w-full lg:w-1/2 grid grid-cols-2 gap-3 sm:gap-4">
                     {mugThemes.length > 0 ? (
                       <>
                         <div className="space-y-4">

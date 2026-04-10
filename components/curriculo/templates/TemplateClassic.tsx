@@ -3,11 +3,16 @@ import React from 'react';
 import type { ResumeData } from '../../../types';
 
 const TemplateClassic: React.FC<{ data: ResumeData, fontFamily?: string }> = ({ data, fontFamily }) => {
-    const { profile, summary, experiences, education, courses, informatics, languages, templateColor, fontSize, lineHeight, alignment, fontTitle, fontBody } = data;
+    const { profile, summary, experiences, education, courses, informatics, languages, templateColor, fontSize, lineHeight, alignment, fontTitle, fontBody, sectionSpacing } = data;
     const color = templateColor || '#334155'; // slate-700
     const lineHeightClasses = { snug: 'leading-snug', relaxed: 'leading-relaxed', loose: 'leading-loose' };
     const alignmentClasses = { left: 'text-left', center: 'text-center', right: 'text-right', justify: 'text-justify' };
     
+    const spacingStyle = {
+        marginBottom: `${(sectionSpacing || 1.5) * 0.5}rem`,
+        marginTop: `${(sectionSpacing || 1.5) * 0.5}rem`
+    };
+
     const formattedAddress = [
         profile.address.street,
         profile.address.number && `nº ${profile.address.number}`,
@@ -34,12 +39,12 @@ const TemplateClassic: React.FC<{ data: ResumeData, fontFamily?: string }> = ({ 
                 </p>
             </header>
 
-            {summary && <section className="mb-5">
+            {summary && <section style={spacingStyle}>
                 <SectionTitle>Resumo</SectionTitle>
                 <p className={alignmentClasses[alignment || 'left']}>{summary}</p>
             </section>}
             
-            {experiences.length > 0 && <section className="mb-5">
+            {experiences.length > 0 && <section style={spacingStyle}>
                 <SectionTitle>Experiência Profissional</SectionTitle>
                 {experiences.map(exp => (
                     <div key={exp.id} className="mb-3">
@@ -53,7 +58,7 @@ const TemplateClassic: React.FC<{ data: ResumeData, fontFamily?: string }> = ({ 
                 ))}
             </section>}
             
-            {education.length > 0 && <section className="mb-5">
+            {education.length > 0 && <section style={spacingStyle}>
                 <SectionTitle>Formação</SectionTitle>
                 {education.map(edu => (
                     <div key={edu.id} className="mb-2">
@@ -66,7 +71,7 @@ const TemplateClassic: React.FC<{ data: ResumeData, fontFamily?: string }> = ({ 
                 ))}
             </section>}
 
-            {(informatics.hasInformatics || courses.length > 0) && <section className="mb-5">
+            {(informatics.hasInformatics || courses.length > 0) && <section style={spacingStyle}>
                 <SectionTitle>Qualificações e Cursos</SectionTitle>
                 {informatics.hasInformatics && (
                     <div className="mb-2 text-sm">
@@ -83,7 +88,7 @@ const TemplateClassic: React.FC<{ data: ResumeData, fontFamily?: string }> = ({ 
                 ))}
             </section>}
 
-            {languages.length > 0 && <section>
+            {languages.length > 0 && <section style={spacingStyle}>
                 <SectionTitle>Idiomas</SectionTitle>
                  <p>{languages.map(lang => `${lang.name} (${lang.level})`).join(' • ')}</p>
             </section>}

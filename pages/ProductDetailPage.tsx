@@ -7,7 +7,8 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useCategories } from '../context/CategoryContext';
 import { useCart } from '../context/CartContext';
 import { useSettings } from '../context/SettingsContext';
-import { uploadToGitHub, isGitHubConfigured } from '../services/githubService';
+import { uploadFile } from '../lib/storage';
+import { useAuth } from '../context/AuthContext';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import SparklesIcon from '../components/icons/SparklesIcon';
 import UploadIcon from '../components/icons/UploadIcon';
@@ -53,35 +54,16 @@ const ProductDetailPage: React.FC = () => {
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const file = e.target.files[0];
-            
-            // Upload to GitHub (integrated storage)
-            if (isGitHubConfigured(settings)) {
-                setIsUploading(true);
-                try {
-                    const url = await uploadToGitHub(
-                        file,
-                        settings.githubToken,
-                        settings.githubOwner,
-                        settings.githubRepo,
-                        settings.githubBranch
-                    );
-                    setCustomImage(url);
-                } catch (error) {
-                    console.error("Erro ao fazer upload para o GitHub, usando base64 como fallback:", error);
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        setCustomImage(reader.result as string);
-                    };
-                    reader.readAsDataURL(file);
-                } finally {
-                    setIsUploading(false);
-                }
-            } else {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    setCustomImage(reader.result as string);
-                };
-                reader.readAsDataURL(file);
+            setIsUploading(true);
+            try {
+                const path = `custom_orders/${Date.now()}_${file.name}`;
+                const url = await uploadFile(file, path);
+                setCustomImage(url);
+            } catch (error) {
+                console.error("Erro ao fazer upload da imagem:", error);
+                alert("Erro ao fazer upload da imagem. Tente novamente.");
+            } finally {
+                setIsUploading(false);
             }
         }
     };

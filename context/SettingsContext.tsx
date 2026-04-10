@@ -45,23 +45,29 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const docRef = doc(db, 'app_settings', 'global');
-    
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data() as AppSettings;
-        setSettings({ ...defaultSettings, ...data });
-        if (data.aiKey) {
-          setCustomApiKey(data.aiKey);
+    const fetchSettings = async () => {
+      try {
+        const docRef = doc(db, 'app_settings', 'global');
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data() as AppSettings;
+          setSettings({ ...defaultSettings, ...data });
+          if (data.aiKey) {
+            setCustomApiKey(data.aiKey);
+          }
+        } else {
+          // Initialize with defaults if doesn't exist
+          await setDoc(docRef, defaultSettings);
         }
-      } else {
-        // Initialize with defaults if doesn't exist
-        setDoc(docRef, defaultSettings).catch(console.error);
+      } catch (error) {
+        // console.error("Error fetching settings:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    fetchSettings();
   }, []);
 
   const updateSettings = async (newSettings: Partial<AppSettings>) => {

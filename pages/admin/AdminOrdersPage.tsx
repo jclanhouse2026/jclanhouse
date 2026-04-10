@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { useOrders } from '../../context/OrderContext';
 import { useNotifications } from '../../context/NotificationContext';
-import { ShoppingBag, CheckCircle, Clock, XCircle, Eye, Trash2, MapPin, Phone, User } from 'lucide-react';
+import { ShoppingBag, CheckCircle, Clock, XCircle, Eye, Trash2, MapPin, Phone, User, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Order } from '../../types';
 import ConfirmModal from '../../components/admin/ConfirmModal';
+import ImageModal from '../../components/ImageModal';
 
 const AdminOrdersPage: React.FC = () => {
   const { orders, loading, updateOrderStatus, deleteOrder } = useOrders();
   const { addNotification } = useNotifications();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [filter, setFilter] = useState<Order['status'] | 'all'>('all');
+  const [zoomImage, setZoomImage] = useState<{ url: string; title: string } | null>(null);
   
   // Modal de confirmação
   const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, id?: string}>({ isOpen: false });
@@ -257,9 +259,14 @@ const AdminOrdersPage: React.FC = () => {
                   <div className="space-y-3">
                     {selectedOrder.items.map((item, idx) => (
                       <div key={idx} className="flex items-center gap-4 bg-slate-900/30 p-3 rounded-lg border border-slate-700/50">
-                        <div className="w-12 h-12 bg-slate-700 rounded-md overflow-hidden flex-shrink-0">
+                        <div className="w-12 h-12 bg-slate-700 rounded-md overflow-hidden flex-shrink-0 relative group cursor-pointer" onClick={() => setZoomImage({ url: item.image, title: item.name })}>
                           {item.image ? (
-                            <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                            <>
+                              <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Maximize2 className="w-4 h-4 text-white" />
+                              </div>
+                            </>
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-500">
                               <ShoppingBag className="w-6 h-6" />
@@ -275,9 +282,15 @@ const AdminOrdersPage: React.FC = () => {
                           {item.customization?.image && (
                             <div className="mt-2">
                               <p className="text-xs text-slate-500 mb-1">Imagem Personalizada:</p>
-                              <a href={item.customization.image} target="_blank" rel="noopener noreferrer" className="inline-block">
-                                <img src={item.customization.image} alt="Personalização" className="w-20 h-20 object-cover rounded border border-slate-600 hover:border-cyan-500 transition-colors" />
-                              </a>
+                              <div 
+                                className="relative w-20 h-20 group cursor-pointer"
+                                onClick={() => setZoomImage({ url: item.customization!.image!, title: 'Imagem de Personalização' })}
+                              >
+                                <img src={item.customization.image} alt="Personalização" className="w-full h-full object-cover rounded border border-slate-600 group-hover:border-cyan-500 transition-colors" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded">
+                                  <Maximize2 className="w-4 h-4 text-white" />
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -335,6 +348,13 @@ const AdminOrdersPage: React.FC = () => {
           message="Tem certeza que deseja excluir este pedido permanentemente? Esta ação não pode ser desfeita."
           onConfirm={executeDelete}
           onCancel={() => setConfirmModal({ isOpen: false })}
+      />
+
+      <ImageModal 
+        isOpen={!!zoomImage}
+        onClose={() => setZoomImage(null)}
+        imageUrl={zoomImage?.url || ''}
+        title={zoomImage?.title}
       />
     </div>
   );

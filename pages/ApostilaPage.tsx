@@ -24,6 +24,7 @@ import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 import { useNavigate } from 'react-router-dom';
+import { generateOrderNumber } from '../lib/orderUtils';
 
 const ApostilaPage: React.FC = () => {
   const { settings, colors, loading } = useApostila();
@@ -96,10 +97,12 @@ const ApostilaPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      const orderNumber = generateOrderNumber();
       const orderData = {
         user_id: user.id,
         user_name: user.name || 'Cliente',
         user_whatsapp: '', // Could be fetched from profile
+        order_number: orderNumber,
         title,
         print_type: printType,
         pages,
@@ -117,7 +120,7 @@ const ApostilaPage: React.FC = () => {
       await addDoc(collection(db, 'apostila_orders'), orderData);
       
       // Also send to WhatsApp if needed
-      const message = `*Novo Pedido de Apostila*%0A%0A` +
+      const message = `*Novo Pedido de Apostila (Pedido #${orderNumber})*%0A%0A` +
         (title ? `*Título:* ${title}%0A` : '') +
         `*Tipo:* ${printType === 'bw' ? 'Preto e Branco' : 'Colorido'}%0A` +
         `*Páginas:* ${pages}%0A` +

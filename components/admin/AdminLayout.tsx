@@ -24,6 +24,8 @@ import DocumentTextIcon from '../icons/DocumentTextIcon';
 import PlayCircleIcon from '../icons/PlayCircleIcon';
 import KeyIcon from '../icons/KeyIcon';
 
+import NotificationBell from '../NotificationBell';
+
 const SidebarLink: React.FC<{ to: string; icon: React.ElementType; children: React.ReactNode }> = ({ to, icon: Icon, children }) => (
   <NavLink
     to={to}
@@ -73,6 +75,7 @@ const AdminLayout: React.FC = () => {
         <SidebarLink to="/admin/imagens" icon={InboxInIcon}>Imagens Enviadas</SidebarLink>
         <SidebarLink to="/admin/relatorios" icon={ReportIcon}>Relatórios</SidebarLink>
         <SidebarLink to="/admin/curriculos" icon={DocumentTextIcon}>Currículos</SidebarLink>
+        <SidebarLink to="/admin/notificacoes" icon={BellIcon}>Notificações</SidebarLink>
         <SidebarLink to="/admin/pdv-auth" icon={KeyIcon}>Autorizações PDV</SidebarLink>
         <SidebarLink to="/admin/apostila" icon={DocumentTextIcon}>Config. Apostila</SidebarLink>
         <SidebarLink to="/admin/configuracoes-home" icon={HomeModernIcon}>Config. Home</SidebarLink>
@@ -116,10 +119,7 @@ const AdminLayout: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button className="relative text-slate-400 hover:text-white">
-              <BellIcon className="w-6 h-6" />
-              <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-slate-800"></span>
-            </button>
+            <NotificationBell />
             <div className="relative">
               <button onClick={() => setProfileOpen(!profileOpen)} className="flex items-center gap-2">
                 <img

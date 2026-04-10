@@ -35,7 +35,7 @@ export const CategoryProvider: React.FC<{ children: ReactNode }> = ({ children }
         }));
         setCategories(combined);
     } catch (error) {
-        console.error("Erro ao buscar categorias:", (error as Error).message);
+        // console.error("Erro ao buscar categorias:", (error as Error).message);
     } finally {
         setLoading(false);
     }

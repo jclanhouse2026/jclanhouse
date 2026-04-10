@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, onSnapshot, writeBatch, getDocs } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 import type { Notification } from '../types';
 
@@ -8,7 +8,9 @@ interface NotificationContextType {
   notifications: Notification[];
   loading: boolean;
   addNotification: (userId: string, title: string, message: string, type: Notification['type']) => Promise<void>;
+  sendNotificationToAll: (title: string, message: string, type: Notification['type']) => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
   unreadCount: number;
 }
@@ -21,13 +23,13 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) {
-      setNotifications([]);
-      setLoading(false);
-      return;
-    }
-
     const fetchNotifications = async () => {
+      if (!user) {
+        setNotifications([]);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
         const q = query(
@@ -35,14 +37,15 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
           where('userId', '==', user.id),
           orderBy('createdAt', 'desc')
         );
-        const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map(doc => ({
+
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as Notification[];
         setNotifications(data);
-      } catch (e) {
-        console.error("Error fetching notifications:", e);
+      } catch (error) {
+        // console.error("Error fetching notifications:", error);
       } finally {
         setLoading(false);
       }
@@ -61,28 +64,81 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       createdAt: new Date().toISOString()
     };
 
-    const docRef = await addDoc(collection(db, 'notifications'), newNotificationData);
-    const newNotification = { id: docRef.id, ...newNotificationData } as Notification;
-    
-    if (user && user.id === userId) {
-      setNotifications(prev => [newNotification, ...prev]);
+    await addDoc(collection(db, 'notifications'), newNotificationData);
+  };
+
+  const sendNotificationToAll = async (title: string, message: string, type: Notification['type']) => {
+    try {
+      // Fetch all users
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const batch = writeBatch(db);
+      
+      usersSnapshot.docs.forEach(userDoc => {
+        const notificationRef = doc(collection(db, 'notifications'));
+        batch.set(notificationRef, {
+          userId: userDoc.id,
+          title,
+          message,
+          type,
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error("Error sending notification to all users:", error);
+      throw error;
     }
   };
 
   const markAsRead = async (notificationId: string) => {
-    await updateDoc(doc(db, 'notifications', notificationId), { read: true });
-    setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, read: true } : n));
+    try {
+      await updateDoc(doc(db, 'notifications', notificationId), { read: true });
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    if (!user) return;
+    try {
+      const unreadNotifications = notifications.filter(n => !n.read);
+      if (unreadNotifications.length === 0) return;
+
+      const batch = writeBatch(db);
+      unreadNotifications.forEach(n => {
+        const ref = doc(db, 'notifications', n.id);
+        batch.update(ref, { read: true });
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
   };
 
   const deleteNotification = async (notificationId: string) => {
-    await deleteDoc(doc(db, 'notifications', notificationId));
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    try {
+      await deleteDoc(doc(db, 'notifications', notificationId));
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <NotificationContext.Provider value={{ notifications, loading, addNotification, markAsRead, deleteNotification, unreadCount }}>
+    <NotificationContext.Provider value={{ 
+      notifications, 
+      loading, 
+      addNotification, 
+      sendNotificationToAll,
+      markAsRead, 
+      markAllAsRead,
+      deleteNotification, 
+      unreadCount 
+    }}>
       {children}
     </NotificationContext.Provider>
   );

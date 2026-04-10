@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
@@ -29,18 +29,19 @@ export const ExpensesProvider: React.FC<{ children: ReactNode }> = ({ children }
   const { user } = useAuth();
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
-  useEffect(() => {
+  const fetchExpenses = useCallback(async () => {
     if (!user) {
         setExpenses([]);
         return;
     }
     
-    const expensesRef = collection(db, 'expenses');
-    const q = user.role === 'admin'
-        ? query(expensesRef, orderBy('date_time', 'desc'))
-        : query(expensesRef, where('user_id', '==', user.id), orderBy('date_time', 'desc'));
+    try {
+        const expensesRef = collection(db, 'expenses');
+        const q = user.role === 'admin'
+            ? query(expensesRef, orderBy('date_time', 'desc'))
+            : query(expensesRef, where('user_id', '==', user.id), orderBy('date_time', 'desc'));
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const querySnapshot = await getDocs(q);
         const formattedData = querySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
@@ -57,17 +58,19 @@ export const ExpensesProvider: React.FC<{ children: ReactNode }> = ({ children }
             };
         });
         setExpenses(formattedData);
-    }, (error) => {
+    } catch (error) {
         try {
             handleFirestoreError(error, OperationType.LIST, 'expenses');
         } catch (e) {
             console.error("Erro ao buscar despesas:", (e as Error).message);
             setExpenses([]);
         }
-    });
-
-    return () => unsubscribe();
+    }
   }, [user]);
+
+  useEffect(() => {
+    fetchExpenses();
+  }, [fetchExpenses]);
 
   const expensesForCurrentUser = useMemo(() => {
       if (!user) return [];

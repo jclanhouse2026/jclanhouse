@@ -153,7 +153,7 @@ export const ServicePricingProvider: React.FC<{ children: ReactNode }> = ({ chil
                 setPricing(initialPricingData);
             }
         } catch (error) {
-            console.error("Erro ao buscar configurações de preço:", (error as Error).message);
+            // console.error("Erro ao buscar configurações de preço:", (error as Error).message);
             setPricing(initialPricingData);
         } finally {
             setLoading(false);

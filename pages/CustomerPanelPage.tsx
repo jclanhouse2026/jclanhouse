@@ -9,6 +9,7 @@ import MapPinIcon from '../components/icons/MapPinIcon';
 import LogoutIcon from '../components/icons/LogoutIcon';
 import DashboardIcon from '../components/icons/DashboardIcon';
 import DocumentTextIcon from '../components/icons/DocumentTextIcon';
+import BellIcon from '../components/icons/BellIcon';
 
 const SidebarLink: React.FC<{ to: string; icon: React.ElementType; children: React.ReactNode }> = ({ to, icon: Icon, children }) => (
   <NavLink
@@ -47,6 +48,7 @@ const CustomerPanelPage: React.FC = () => {
                 <SidebarLink to="/cliente/dashboard" icon={DashboardIcon}>Dashboard</SidebarLink>
                 <SidebarLink to="/cliente/pedidos" icon={ListIcon}>Meus Pedidos</SidebarLink>
                 <SidebarLink to="/cliente/curriculos" icon={DocumentTextIcon}>Meus Currículos</SidebarLink>
+                <SidebarLink to="/cliente/notificacoes" icon={BellIcon}>Notificações</SidebarLink>
                 <SidebarLink to="/cliente/endereco" icon={MapPinIcon}>Endereço</SidebarLink>
                 <SidebarLink to="/cliente/perfil" icon={UserIcon}>Meus Dados</SidebarLink>
                 <button onClick={handleLogout} className="w-full flex items-center p-3 text-slate-300 rounded-md hover:bg-slate-700 transition-colors">

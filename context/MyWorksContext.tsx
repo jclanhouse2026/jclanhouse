@@ -43,7 +43,7 @@ export const MyWorksProvider: React.FC<{ children: ReactNode }> = ({ children })
         setWorks(data);
     } catch (err: any) {
         const userMessage = "Erro ao carregar os trabalhos.";
-        console.error("Erro detalhado ao buscar trabalhos:", err.message);
+        // console.error("Erro detalhado ao buscar trabalhos:", err.message);
         setError(userMessage);
     } finally {
         setLoading(false);

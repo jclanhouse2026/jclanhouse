@@ -46,12 +46,12 @@ const ThemeSelectionPage: React.FC = () => {
                     
                     <div className="bg-slate-800 rounded-xl p-4 mb-12 sticky top-20 z-40 border border-slate-700 shadow-lg">
                         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-2 p-1 bg-slate-700/50 rounded-lg">
+                            <div className="flex items-center gap-2 p-1 bg-slate-700/50 rounded-lg overflow-x-auto max-w-full no-scrollbar">
                                 {(['TODOS', 'MENINO', 'MENINA', 'UNISSEX'] as (ThemeCategory | 'TODOS')[]).map(cat => (
                                     <button
                                         key={cat}
                                         onClick={() => setActiveCategory(cat)}
-                                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors duration-200 ${
+                                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors duration-200 whitespace-nowrap ${
                                             activeCategory === cat ? 'bg-orange-500 text-white shadow' : 'text-slate-300 hover:bg-slate-700'
                                         }`}
                                     >

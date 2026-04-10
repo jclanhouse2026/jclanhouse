@@ -16,7 +16,7 @@ interface CompanyInfo {
 const defaultCompanyInfo: CompanyInfo = {
     name: 'JC LAN HOUSE',
     cnpj: '00.000.000/0001-00',
-    phone: '(81) 98888-8888',
+    phone: '+5594991083745',
     email: 'contato@jclanhouse.com',
     address: 'Rua Principal, 123, Centro',
     zip: '50000-000',
@@ -61,7 +61,7 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
                 setCompanyInfo(defaultCompanyInfo);
             }
         } catch (e) {
-            console.error("Exceção ao buscar informações da empresa:", (e as Error).message);
+            // console.error("Exceção ao buscar informações da empresa:", (e as Error).message);
             setCompanyInfo(defaultCompanyInfo);
         }
     };

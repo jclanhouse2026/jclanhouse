@@ -61,6 +61,7 @@ import CustomerDashboardPage from './pages/CustomerDashboardPage';
 import CustomerOrdersPage from './pages/CustomerOrdersPage';
 import CustomerAddressPage from './pages/CustomerAddressPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
+import CustomerNotificationsPage from './pages/customer/CustomerNotificationsPage';
 import CurriculoPage from './pages/CurriculoPage';
 import CustomerResumesPage from './pages/customer/CustomerResumesPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
@@ -69,6 +70,7 @@ import AdminPdvAuthPage from './pages/admin/AdminPdvAuthPage';
 import ApostilaPage from './pages/ApostilaPage';
 import AdminApostilaPage from './pages/admin/AdminApostilaPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
+import AdminNotificationsPage from './pages/admin/AdminNotificationsPage';
 import AIAssistant from './components/AIAssistant';
 
 const App: React.FC = () => {
@@ -152,6 +154,7 @@ const App: React.FC = () => {
                                                 <Route path="configuracoes-home" element={<AdminHomeSettingsPage />} />
                                                 <Route path="configuracoes-servicos" element={<AdminServicesSettingsPage />} />
                                                 <Route path="apostila" element={<AdminApostilaPage />} />
+                                                <Route path="notificacoes" element={<AdminNotificationsPage />} />
                                               </Route>
                                             </Route>
                                             
