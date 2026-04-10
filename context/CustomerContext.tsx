@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
+import { uploadFile } from '../lib/storage';
 import type { Customer } from '../types';
 
 type CustomerData = Omit<Customer, 'id' | 'userId' | 'signupDate' | 'status'> & { file?: File };
@@ -22,19 +23,58 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchCustomers = useCallback(() => {
+  const fetchCustomers = useCallback(async () => {
     setLoading(true);
-    const data = getLocalData<Customer[]>('customers', []);
-    setCustomers(data);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .order('full_name', { ascending: true });
+      
+      if (error) throw error;
+      
+      // Map database fields to frontend types
+      const mappedData = (data || []).map(c => ({
+        id: c.id,
+        userId: c.user_id,
+        fullName: c.full_name,
+        email: c.email,
+        phone: c.phone,
+        cpf: c.cpf,
+        dob: c.dob,
+        avatarUrl: c.avatar_url,
+        photoURL: c.avatar_url,
+        address: c.address,
+        status: c.status,
+        signupDate: c.signup_date
+      }));
+      
+      setCustomers(mappedData as Customer[]);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     fetchCustomers();
+
+    const subscription = supabase
+      .channel('customers_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
+        fetchCustomers();
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [fetchCustomers]);
 
   const customersForCurrentUser = useMemo(() => {
       if (!user) return [];
+      if (user.role === 'admin') return customers;
       return customers.filter(c => c.userId === user.id);
   }, [customers, user]);
 
@@ -43,29 +83,41 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     const { file, ...restData } = customerData;
     
-    // Convert file to data URL if present
     let avatarUrl = restData.avatarUrl;
     if (file) {
-        avatarUrl = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-        });
+        avatarUrl = await uploadFile(file, 'avatars');
     }
+
+    const dbCustomer = {
+        user_id: user.id,
+        full_name: restData.fullName,
+        email: restData.email,
+        phone: restData.phone,
+        cpf: restData.cpf,
+        dob: restData.dob,
+        avatar_url: avatarUrl,
+        address: restData.address,
+        status: 'Ativo'
+    };
+
+    const { data, error } = await supabase
+        .from('customers')
+        .insert([dbCustomer])
+        .select()
+        .single();
+    
+    if (error) throw error;
 
     const newCustomer: Customer = {
         ...restData,
-        id: Date.now().toString(),
-        userId: user.id,
-        avatarUrl,
-        photoURL: avatarUrl,
-        status: 'Ativo',
-        signupDate: new Date().toISOString()
+        id: data.id,
+        userId: data.user_id,
+        avatarUrl: data.avatar_url,
+        photoURL: data.avatar_url,
+        status: data.status,
+        signupDate: data.signup_date
     };
 
-    const updated = [...customers, newCustomer];
-    setCustomers(updated);
-    setLocalData('customers', updated);
     return newCustomer;
   };
 
@@ -74,66 +126,77 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     
     let avatarUrl = restData.avatarUrl;
     if (file) {
-        avatarUrl = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-        });
+        avatarUrl = await uploadFile(file, 'avatars');
     }
 
-    const updated = customers.map(c => c.id === id ? { ...c, ...restData, avatarUrl, photoURL: avatarUrl } : c);
-    setCustomers(updated);
-    setLocalData('customers', updated);
+    const { error } = await supabase
+      .from('customers')
+      .update({
+        full_name: restData.fullName,
+        email: restData.email,
+        phone: restData.phone,
+        cpf: restData.cpf,
+        dob: restData.dob,
+        avatar_url: avatarUrl,
+        address: restData.address
+      })
+      .eq('id', id);
+    
+    if (error) throw error;
   };
 
   const updateCurrentCustomer = async (userId: string, updates: Partial<Customer> & { file?: File }): Promise<void> => {
     const customer = customers.find(c => c.userId === userId);
     const { file, ...restUpdates } = updates;
 
-    if (customer) {
-        let avatarUrl = restUpdates.avatarUrl;
-        if (file) {
-            avatarUrl = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.readAsDataURL(file);
-            });
-        }
+    let avatarUrl = restUpdates.avatarUrl;
+    if (file) {
+        avatarUrl = await uploadFile(file, 'avatars');
+    }
 
-        const updated = customers.map(c => c.id === customer.id ? { 
-            ...c, 
-            ...restUpdates, 
-            avatarUrl: avatarUrl || c.avatarUrl, 
-            photoURL: avatarUrl || c.photoURL 
-        } : c);
-        setCustomers(updated);
-        setLocalData('customers', updated);
+    if (customer) {
+        const { error } = await supabase
+          .from('customers')
+          .update({
+            full_name: restUpdates.fullName || customer.fullName,
+            email: restUpdates.email || customer.email,
+            phone: restUpdates.phone || customer.phone,
+            cpf: restUpdates.cpf || customer.cpf,
+            dob: restUpdates.dob || customer.dob,
+            avatar_url: avatarUrl || customer.avatarUrl,
+            address: restUpdates.address || customer.address
+          })
+          .eq('id', customer.id);
+        
+        if (error) throw error;
     } else {
-        const newCustomer: Customer = {
-            id: Date.now().toString(),
-            userId: userId,
-            fullName: restUpdates.fullName || '',
+        const dbCustomer = {
+            user_id: userId,
+            full_name: restUpdates.fullName || '',
             email: restUpdates.email || '',
             phone: restUpdates.phone || '',
             cpf: restUpdates.cpf,
-            dob: (restUpdates as any).birthDate || restUpdates.dob,
-            address: restUpdates.address,
-            photoURL: restUpdates.photoURL,
-            avatarUrl: restUpdates.avatarUrl,
-            status: 'Ativo',
-            signupDate: new Date().toISOString(),
-            ...restUpdates
+            dob: restUpdates.dob,
+            avatar_url: avatarUrl,
+            address: restUpdates.address || {},
+            status: 'Ativo'
         };
-        const updated = [...customers, newCustomer];
-        setCustomers(updated);
-        setLocalData('customers', updated);
+
+        const { error } = await supabase
+            .from('customers')
+            .insert([dbCustomer]);
+        
+        if (error) throw error;
     }
   };
 
   const deleteCustomer = async (customerId: string): Promise<void> => {
-    const updated = customers.filter(c => c.id !== customerId);
-    setCustomers(updated);
-    setLocalData('customers', updated);
+    const { error } = await supabase
+      .from('customers')
+      .delete()
+      .eq('id', customerId);
+    
+    if (error) throw error;
   };
 
   return (

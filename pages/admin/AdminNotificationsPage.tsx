@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNotifications } from '../../context/NotificationContext';
-import { db } from '../../lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { supabase } from '../../lib/supabase';
 import type { User } from '../../types';
 import BellIcon from '../../components/icons/BellIcon';
 import SendIcon from '../../components/icons/SendIcon';
@@ -29,11 +28,20 @@ const AdminNotificationsPage: React.FC = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, 'users'));
-        const usersData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*');
+        
+        if (error) throw error;
+        
+        const usersData = (data || []).map(profile => ({
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          role: profile.role,
+          photoURL: profile.photo_url
         })) as User[];
+        
         setUsers(usersData);
       } catch (error) {
         console.error("Error fetching users:", error);

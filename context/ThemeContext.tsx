@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import type { Theme, ThemeOrder } from '../types';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
 
@@ -19,24 +19,66 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, uploadFile } = useAuth();
   const { addNotification, sendNotificationToAll } = useNotifications();
   const [themes, setThemes] = useState<Theme[]>([]);
   const [themeOrders, setThemeOrders] = useState<ThemeOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchThemes = useCallback(() => {
-    setLoading(true);
-    const data = getLocalData<Theme[]>('themes', []);
-    setThemes(data);
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
-    fetchThemes();
-    const orders = getLocalData<ThemeOrder[]>('theme_orders', []);
-    setThemeOrders(orders);
-  }, [fetchThemes]);
+    setLoading(true);
+    
+    // Initial fetch
+    const fetchInitialData = async () => {
+        const { data: themesData } = await supabase
+            .from('themes')
+            .select('*')
+            .order('name', { ascending: true });
+        
+        const { data: ordersData } = await supabase
+            .from('theme_orders')
+            .select('*')
+            .order('createdAt', { ascending: false });
+        
+        setThemes(themesData || []);
+        setThemeOrders(ordersData || []);
+        setLoading(false);
+    };
+
+    fetchInitialData();
+
+    // Subscriptions
+    const themesSubscription = supabase
+        .channel('themes-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'themes' }, (payload) => {
+            if (payload.eventType === 'INSERT') {
+                setThemes(prev => [...prev, payload.new as Theme].sort((a, b) => a.name.localeCompare(b.name)));
+            } else if (payload.eventType === 'UPDATE') {
+                setThemes(prev => prev.map(t => t.id === payload.new.id ? payload.new as Theme : t));
+            } else if (payload.eventType === 'DELETE') {
+                setThemes(prev => prev.filter(t => t.id !== payload.old.id));
+            }
+        })
+        .subscribe();
+
+    const ordersSubscription = supabase
+        .channel('orders-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'theme_orders' }, (payload) => {
+            if (payload.eventType === 'INSERT') {
+                setThemeOrders(prev => [payload.new as ThemeOrder, ...prev]);
+            } else if (payload.eventType === 'UPDATE') {
+                setThemeOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new as ThemeOrder : o));
+            } else if (payload.eventType === 'DELETE') {
+                setThemeOrders(prev => prev.filter(o => o.id !== payload.old.id));
+            }
+        })
+        .subscribe();
+
+    return () => {
+        supabase.removeChannel(themesSubscription);
+        supabase.removeChannel(ordersSubscription);
+    };
+  }, []);
 
   const addTheme = async (themeData: Omit<Theme, 'id'> & { file?: File }) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar tema.");
@@ -45,22 +87,21 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let publicUrl = imageUrl;
 
     if (file) {
-        publicUrl = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-        });
+        const path = `themes/${Date.now()}_${file.name}`;
+        publicUrl = await uploadFile(file, path);
     }
 
-    const newTheme: Theme = { 
+    const newTheme = { 
       ...restThemeData, 
-      id: Date.now().toString(),
       imageUrl: publicUrl || '',
+      createdAt: new Date().toISOString()
     };
     
-    const updated = [...themes, newTheme];
-    setThemes(updated);
-    setLocalData('themes', updated);
+    const { error } = await supabase
+        .from('themes')
+        .insert([newTheme]);
+    
+    if (error) throw error;
 
     await sendNotificationToAll(
       'Novo Tema Adicionado!',
@@ -74,36 +115,43 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let publicUrl = imageUrl;
 
     if (file) {
-        publicUrl = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-        });
+        const path = `themes/${Date.now()}_${file.name}`;
+        publicUrl = await uploadFile(file, path);
     }
 
-    const updated = themes.map(t => t.id === id ? { ...t, ...restThemeData, imageUrl: publicUrl } : t);
-    setThemes(updated);
-    setLocalData('themes', updated);
+    const updateData = { ...restThemeData, imageUrl: publicUrl };
+    const { error } = await supabase
+        .from('themes')
+        .update(updateData)
+        .eq('id', id);
+    
+    if (error) throw error;
   };
 
   const deleteTheme = async (themeId: string) => {
-    const updated = themes.filter(t => t.id !== themeId);
-    setThemes(updated);
-    setLocalData('themes', updated);
+    const { error } = await supabase
+        .from('themes')
+        .delete()
+        .eq('id', themeId);
+    
+    if (error) throw error;
   };
 
   const addThemeOrder = async (orderData: Omit<ThemeOrder, 'id' | 'createdAt' | 'status'>) => {
-    const newOrder: ThemeOrder = {
+    const newOrder = {
       ...orderData,
-      id: Date.now().toString(),
       userId: user ? user.id : null,
       status: 'pending',
       createdAt: new Date().toISOString()
     };
     
-    const updated = [newOrder, ...themeOrders];
-    setThemeOrders(updated);
-    setLocalData('theme_orders', updated);
+    const { data, error } = await supabase
+        .from('theme_orders')
+        .insert([newOrder])
+        .select()
+        .single();
+    
+    if (error) throw error;
 
     if (user) {
       await addNotification(
@@ -114,15 +162,18 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       );
     }
 
-    return newOrder.id;
+    return data.id;
   };
 
   const updateThemeOrderStatus = async (orderId: string, status: 'pending' | 'completed') => {
     const order = themeOrders.find(o => o.id === orderId);
     if (order) {
-        const updated = themeOrders.map(o => o.id === orderId ? { ...o, status } : o);
-        setThemeOrders(updated);
-        setLocalData('theme_orders', updated);
+        const { error } = await supabase
+            .from('theme_orders')
+            .update({ status })
+            .eq('id', orderId);
+        
+        if (error) throw error;
         
         if (order.userId && status === 'completed') {
           await addNotification(
@@ -136,9 +187,12 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const deleteThemeOrder = async (orderId: string) => {
-    const updated = themeOrders.filter(o => o.id !== orderId);
-    setThemeOrders(updated);
-    setLocalData('theme_orders', updated);
+    const { error } = await supabase
+        .from('theme_orders')
+        .delete()
+        .eq('id', orderId);
+    
+    if (error) throw error;
   };
 
   return (

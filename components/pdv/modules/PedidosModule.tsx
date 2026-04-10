@@ -69,7 +69,7 @@ const PedidosModule: React.FC<{ onBack: () => void, onEdit: (sale: Sale) => void
                                         {getStatusBadge(sale.status)}
                                     </div>
                                     <p className="text-sm text-slate-400 mb-2">
-                                        {sale.dateTime.toLocaleDateString('pt-BR')} às {sale.dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(sale.dateTime).toLocaleDateString('pt-BR')} às {new Date(sale.dateTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                     <div className="text-sm text-slate-300">
                                         {sale.items.map((item, idx) => (

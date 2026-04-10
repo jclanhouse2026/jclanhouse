@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
 import { useAuth } from './AuthContext';
+import { supabase } from '../lib/supabase';
 import type { Notification } from '../types';
 
 interface NotificationContextType {
@@ -22,19 +22,48 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchNotifications = () => {
+    if (!user) {
+        setNotifications([]);
+        setLoading(false);
+        return;
+    }
+
+    const fetchNotifications = async () => {
       setLoading(true);
-      const data = getLocalData<Notification[]>('notifications', []);
-      setNotifications(data);
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('userId', user.id)
+        .order('createdAt', { ascending: false });
+      
+      if (data) {
+        setNotifications(data as Notification[]);
+      }
       setLoading(false);
     };
 
     fetchNotifications();
-  }, []);
+
+    const subscription = supabase
+        .channel(`notifications-${user.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `userId=eq.${user.id}` }, (payload) => {
+            if (payload.eventType === 'INSERT') {
+                setNotifications(prev => [payload.new as Notification, ...prev]);
+            } else if (payload.eventType === 'UPDATE') {
+                setNotifications(prev => prev.map(n => n.id === payload.new.id ? payload.new as Notification : n));
+            } else if (payload.eventType === 'DELETE') {
+                setNotifications(prev => prev.filter(n => n.id !== payload.old.id));
+            }
+        })
+        .subscribe();
+
+    return () => {
+        supabase.removeChannel(subscription);
+    };
+  }, [user]);
 
   const addNotification = async (userId: string, title: string, message: string, type: Notification['type']) => {
-    const newNotification: Notification = {
-      id: Date.now().toString(),
+    const newNotification = {
       userId,
       title,
       message,
@@ -43,35 +72,58 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       createdAt: new Date().toISOString()
     };
 
-    const updated = [newNotification, ...notifications];
-    setNotifications(updated);
-    setLocalData('notifications', updated);
+    const { error } = await supabase
+        .from('notifications')
+        .insert([newNotification]);
+    
+    if (error) throw error;
   };
 
   const sendNotificationToAll = async (title: string, message: string, type: Notification['type']) => {
-    // In a simplified system, we don't have all users easily.
-    // We'll just notify the current user for now as a placeholder.
-    if (user) {
-        await addNotification(user.id, title, message, type);
+    // In a real app, this might be a server-side function or a broadcast.
+    // For now, we'll just notify the current user if admin, or implement a logic to notify everyone.
+    // If we want to notify ALL users, we'd need to fetch all user IDs or use a broadcast channel.
+    // Let's assume we have a 'profiles' table we can get IDs from.
+    const { data: profiles } = await supabase.from('profiles').select('id');
+    if (profiles) {
+        const notifications = profiles.map(p => ({
+            userId: p.id,
+            title,
+            message,
+            type,
+            read: false,
+            createdAt: new Date().toISOString()
+        }));
+        await supabase.from('notifications').insert(notifications);
     }
   };
 
   const markAsRead = async (notificationId: string) => {
-    const updated = notifications.map(n => n.id === notificationId ? { ...n, read: true } : n);
-    setNotifications(updated);
-    setLocalData('notifications', updated);
+    const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', notificationId);
+    
+    if (error) throw error;
   };
 
   const markAllAsRead = async () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    setNotifications(updated);
-    setLocalData('notifications', updated);
+    if (!user) return;
+    const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('userId', user.id);
+    
+    if (error) throw error;
   };
 
   const deleteNotification = async (notificationId: string) => {
-    const updated = notifications.filter(n => n.id !== notificationId);
-    setNotifications(updated);
-    setLocalData('notifications', updated);
+    const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId);
+    
+    if (error) throw error;
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;

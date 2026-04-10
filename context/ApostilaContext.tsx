@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 
 interface ApostilaSettings {
   id: string;
@@ -59,17 +59,41 @@ export const ApostilaProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = () => {
-      setLoading(true);
-      const savedSettings = getLocalData<ApostilaSettings>('apostila_settings', defaultSettings);
-      const savedColors = getLocalData<ApostilaColor[]>('apostila_colors', defaultColors);
-      
-      setSettings(savedSettings);
-      setColors(savedColors);
-      setLoading(false);
+    setLoading(true);
+    
+    const fetchApostila = async () => {
+        const { data, error } = await supabase
+            .from('settings')
+            .select('data')
+            .eq('id', 'apostila')
+            .single();
+        
+        if (data) {
+            setSettings(data.data.settings || defaultSettings);
+            setColors(data.data.colors || defaultColors);
+        } else {
+            setSettings(defaultSettings);
+            setColors(defaultColors);
+        }
+        setLoading(false);
     };
 
-    fetchData();
+    fetchApostila();
+
+    const subscription = supabase
+        .channel('apostila-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: 'id=eq.apostila' }, (payload) => {
+            if (payload.new) {
+                const data = payload.new as any;
+                setSettings(data.data.settings || defaultSettings);
+                setColors(data.data.colors || defaultColors);
+            }
+        })
+        .subscribe();
+
+    return () => {
+        supabase.removeChannel(subscription);
+    };
   }, []);
 
   return (

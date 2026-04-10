@@ -40,10 +40,10 @@ const FinancialReportPage: React.FC = () => {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         
         // --- KPI Calculations ---
-        const salesToday = sales.filter(s => s.dateTime >= today);
-        const salesMonth = sales.filter(s => s.dateTime >= startOfMonth);
-        const expensesToday = expenses.filter(e => e.dateTime >= today);
-        const expensesMonth = expenses.filter(e => e.dateTime >= startOfMonth);
+        const salesToday = sales.filter(s => new Date(s.dateTime) >= today);
+        const salesMonth = sales.filter(s => new Date(s.dateTime) >= startOfMonth);
+        const expensesToday = expenses.filter(e => new Date(e.dateTime) >= today);
+        const expensesMonth = expenses.filter(e => new Date(e.dateTime) >= startOfMonth);
 
         const totalSalesToday = salesToday.reduce((sum, s) => sum + (s.total || 0), 0);
         const totalSalesMonth = salesMonth.reduce((sum, s) => sum + (s.total || 0), 0);
@@ -73,7 +73,7 @@ const FinancialReportPage: React.FC = () => {
             dayEnd.setDate(dayStart.getDate() + 1);
 
             const total = sales
-                .filter(s => s.dateTime >= dayStart && s.dateTime < dayEnd)
+                .filter(s => new Date(s.dateTime) >= dayStart && new Date(s.dateTime) < dayEnd)
                 .reduce((sum, s) => sum + (s.total || 0), 0);
             
             return { day: day.getDate(), total: total };
@@ -113,10 +113,11 @@ const FinancialReportPage: React.FC = () => {
         }
 
         let filteredData = data.filter(item => {
-            if (filterPeriod === 'today') return item.dateTime >= today;
-            if (filterPeriod === 'week') return item.dateTime >= startOfWeek;
-            if (filterPeriod === 'month') return item.dateTime >= startOfMonth;
-            if (filterPeriod === 'year') return item.dateTime >= startOfYear;
+            const itemDate = new Date(item.dateTime);
+            if (filterPeriod === 'today') return itemDate >= today;
+            if (filterPeriod === 'week') return itemDate >= startOfWeek;
+            if (filterPeriod === 'month') return itemDate >= startOfMonth;
+            if (filterPeriod === 'year') return itemDate >= startOfYear;
             return true;
         }).filter(item => {
             if (!searchTerm) return true;
@@ -284,7 +285,7 @@ const FinancialReportPage: React.FC = () => {
                                         <tr key={`${item.saleId}-${index}`} className="border-b border-slate-700/50">
                                             <td className="py-2 px-2 font-medium">{item.productName}</td>
                                             <td className="py-2 px-2 text-slate-400 hidden sm:table-cell">{item.customerName}</td>
-                                            <td className="py-2 px-2 text-slate-400 hidden md:table-cell">{item.dateTime.toLocaleString('pt-BR')}</td>
+                                            <td className="py-2 px-2 text-slate-400 hidden md:table-cell">{new Date(item.dateTime).toLocaleString('pt-BR')}</td>
                                             <td className="py-2 px-2 text-right font-bold">{formatCurrency(item.itemTotal)}</td>
                                         </tr>
                                     ))}
@@ -303,7 +304,7 @@ const FinancialReportPage: React.FC = () => {
                                     {filteredData.map(item => (
                                         <tr key={item.id} className="border-b border-slate-700/50">
                                             <td className="py-2 px-2 font-medium">{item.description}</td>
-                                            <td className="py-2 px-2 text-slate-400 hidden sm:table-cell">{item.dateTime.toLocaleString('pt-BR')}</td>
+                                            <td className="py-2 px-2 text-slate-400 hidden sm:table-cell">{new Date(item.dateTime).toLocaleString('pt-BR')}</td>
                                             <td className="py-2 px-2 text-right font-bold">{formatCurrency(item.total)}</td>
                                         </tr>
                                     ))}

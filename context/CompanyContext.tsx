@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 
 interface CompanyInfo {
     name: string;
@@ -24,7 +24,8 @@ const defaultCompanyInfo: CompanyInfo = {
 
 interface CompanyContextType {
   companyInfo: CompanyInfo;
-  updateCompanyInfo: (info: Partial<CompanyInfo>) => void;
+  updateCompanyInfo: (info: Partial<CompanyInfo>) => Promise<void>;
+  loading: boolean;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
@@ -32,29 +33,50 @@ const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(defaultCompanyInfo);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchCompanyInfo = () => {
-        if (!user) {
+    const fetchCompanyInfo = async () => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('settings')
+                .select('data')
+                .eq('id', 'company_info')
+                .single();
+            
+            if (data) {
+                setCompanyInfo({ ...defaultCompanyInfo, ...data.data });
+            } else {
+                setCompanyInfo(defaultCompanyInfo);
+            }
+        } catch (error) {
+            console.error("Error fetching company info:", error);
             setCompanyInfo(defaultCompanyInfo);
-            return;
+        } finally {
+            setLoading(false);
         }
-        const data = getLocalData<CompanyInfo>('company_info', defaultCompanyInfo);
-        setCompanyInfo(data);
     };
     fetchCompanyInfo();
-  }, [user]);
+  }, []);
 
 
   const updateCompanyInfo = async (infoUpdate: Partial<CompanyInfo>) => {
-    if (!user) return;
     const updated = { ...companyInfo, ...infoUpdate };
     setCompanyInfo(updated);
-    setLocalData('company_info', updated);
+    try {
+        const { error } = await supabase
+            .from('settings')
+            .upsert({ id: 'company_info', data: updated });
+        
+        if (error) throw error;
+    } catch (error) {
+        console.error("Error updating company info:", error);
+    }
   };
 
   return (
-    <CompanyContext.Provider value={{ companyInfo, updateCompanyInfo }}>
+    <CompanyContext.Provider value={{ companyInfo, updateCompanyInfo, loading }}>
       {children}
     </CompanyContext.Provider>
   );

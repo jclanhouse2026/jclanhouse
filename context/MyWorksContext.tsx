@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 
 export interface MyWork {
     id: string;
@@ -27,45 +27,81 @@ export const MyWorksProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [works, setWorks] = useState<MyWork[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchWorks = useCallback(async () => {
-    setError(null);
-    const data = getLocalData<MyWork[]>('my_works', []);
-    setWorks(data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-  }, []);
-
   useEffect(() => {
+    const fetchWorks = async () => {
+        const { data, error } = await supabase
+            .from('my_works')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error) {
+            console.error("Error fetching my works:", error);
+            setError("Erro ao carregar trabalhos.");
+        } else {
+            setWorks(data || []);
+        }
+    };
+
     fetchWorks();
-  }, [fetchWorks]);
+
+    const subscription = supabase
+        .channel('my_works-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'my_works' }, (payload) => {
+            if (payload.eventType === 'INSERT') {
+                setWorks(prev => [payload.new as MyWork, ...prev]);
+            } else if (payload.eventType === 'UPDATE') {
+                setWorks(prev => prev.map(w => w.id === payload.new.id ? payload.new as MyWork : w));
+            } else if (payload.eventType === 'DELETE') {
+                setWorks(prev => prev.filter(w => w.id !== payload.old.id));
+            }
+        })
+        .subscribe();
+
+    return () => {
+        supabase.removeChannel(subscription);
+    };
+  }, []);
 
   const addWork = async (workData: Omit<MyWork, 'id' | 'created_at'>) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar trabalho.");
 
-    const newWork: MyWork = {
+    const newWork = {
         ...workData,
-        id: Date.now().toString(),
         created_at: new Date().toISOString()
     };
 
-    const updated = [newWork, ...works];
-    setWorks(updated);
-    setLocalData('my_works', updated);
+    const { error } = await supabase
+        .from('my_works')
+        .insert([newWork]);
+    
+    if (error) throw error;
   };
 
   const updateWork = async (updatedWork: Omit<MyWork, 'created_at'>) => {
-    const updated = works.map(w => (w.id === updatedWork.id ? { ...w, ...updatedWork } : w));
-    setWorks(updated);
-    setLocalData('my_works', updated);
+    const { id, ...data } = updatedWork;
+    const { error } = await supabase
+        .from('my_works')
+        .update(data)
+        .eq('id', id);
+    
+    if (error) throw error;
   };
 
   const deleteWork = async (workId: string) => {
-    const updated = works.filter(w => w.id !== workId);
-    setWorks(updated);
-    setLocalData('my_works', updated);
+    const { error } = await supabase
+        .from('my_works')
+        .delete()
+        .eq('id', workId);
+    
+    if (error) throw error;
   };
 
+  const refetchWorks = async () => {
+    // Subscriptions handle this
+  };
 
   return (
-    <MyWorksContext.Provider value={{ works, error, addWork, updateWork, deleteWork, refetchWorks: fetchWorks }}>
+    <MyWorksContext.Provider value={{ works, error, addWork, updateWork, deleteWork, refetchWorks }}>
       {children}
     </MyWorksContext.Provider>
   );

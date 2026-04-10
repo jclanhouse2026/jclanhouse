@@ -1,17 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApostila } from '../../context/ApostilaContext';
-import { db } from '../../lib/firebase';
-import { 
-  collection, 
-  doc, 
-  updateDoc, 
-  addDoc, 
-  deleteDoc, 
-  onSnapshot, 
-  query, 
-  orderBy,
-  getDocs
-} from 'firebase/firestore';
+import { supabase } from '../../lib/supabase';
 import { 
   Save, 
   Plus, 
@@ -55,9 +44,13 @@ const AdminApostilaPage: React.FC<AdminApostilaPageProps> = ({ hideHeader = fals
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const q = query(collection(db, 'apostila_orders'), orderBy('created_at', 'desc'));
-        const snapshot = await getDocs(q);
-        setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const { data, error } = await supabase
+          .from('apostila_orders')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        setOrders(data || []);
       } catch (error) {
         console.error("Error fetching apostila orders:", error);
       }
@@ -70,7 +63,12 @@ const AdminApostilaPage: React.FC<AdminApostilaPageProps> = ({ hideHeader = fals
     setIsSavingSettings(true);
     try {
       const { id, ...data } = settingsForm;
-      await updateDoc(doc(db, 'apostila_settings', 'default'), data);
+      const { error } = await supabase
+        .from('apostila_settings')
+        .update(data)
+        .eq('id', 'default');
+      
+      if (error) throw error;
       alert('Configurações atualizadas com sucesso!');
     } catch (error) {
       console.error('Error updating settings:', error);
@@ -84,7 +82,11 @@ const AdminApostilaPage: React.FC<AdminApostilaPageProps> = ({ hideHeader = fals
     if (!newColor.name) return;
     setIsAddingColor(true);
     try {
-      await addDoc(collection(db, 'apostila_colors'), newColor);
+      const { error } = await supabase
+        .from('apostila_colors')
+        .insert([newColor]);
+      
+      if (error) throw error;
       setNewColor({ name: '', hex: '#000000', active: true });
     } catch (error) {
       console.error('Error adding color:', error);
@@ -95,7 +97,12 @@ const AdminApostilaPage: React.FC<AdminApostilaPageProps> = ({ hideHeader = fals
 
   const handleToggleColor = async (color: any) => {
     try {
-      await updateDoc(doc(db, 'apostila_colors', color.id), { active: !color.active });
+      const { error } = await supabase
+        .from('apostila_colors')
+        .update({ active: !color.active })
+        .eq('id', color.id);
+      
+      if (error) throw error;
     } catch (error) {
       console.error('Error toggling color:', error);
     }
@@ -103,7 +110,12 @@ const AdminApostilaPage: React.FC<AdminApostilaPageProps> = ({ hideHeader = fals
 
   const handleDeleteColor = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'apostila_colors', id));
+      const { error } = await supabase
+        .from('apostila_colors')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
     } catch (error) {
       console.error('Error deleting color:', error);
     }
@@ -111,7 +123,14 @@ const AdminApostilaPage: React.FC<AdminApostilaPageProps> = ({ hideHeader = fals
 
   const handleUpdateOrderStatus = async (orderId: string, status: string) => {
     try {
-      await updateDoc(doc(db, 'apostila_orders', orderId), { status });
+      const { error } = await supabase
+        .from('apostila_orders')
+        .update({ status })
+        .eq('id', orderId);
+      
+      if (error) throw error;
+      
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
     } catch (error) {
       console.error('Error updating order status:', error);
     }
@@ -414,7 +433,7 @@ const AdminApostilaPage: React.FC<AdminApostilaPageProps> = ({ hideHeader = fals
                   <tr key={order.id} className="hover:bg-slate-700/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-bold">{order.user_name}</div>
-                      <div className="text-xs text-slate-500">{new Date(order.created_at?.toDate()).toLocaleString()}</div>
+                      <div className="text-xs text-slate-500">{new Date(order.created_at).toLocaleString()}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold text-white">

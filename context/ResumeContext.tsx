@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, ReactNode, useEffect, useCa
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
 import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 import type { ResumeData, Experience, Education, Language, Course, InformaticsData, ResumeConfig, Objective, TemplateOption, LineHeightOption, FontSizeOption, ResumeRequest } from '../types';
 
 // --- INÍCIO: Dados de Configuração Padrão ---
@@ -133,14 +134,68 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [resumeRequests, setResumeRequests] = useState<ResumeRequest[]>([]);
 
   useEffect(() => {
+    // Local draft stays in localStorage
     const data = getLocalData<ResumeData>('resumeData', initialResumeData);
     setResumeData(data);
     
-    const config = getLocalData<ResumeConfig>('resumeConfig', initialResumeConfig);
-    setResumeConfig(config);
-    
-    const requests = getLocalData<ResumeRequest[]>('resume_requests', []);
-    setResumeRequests(requests);
+    // Load config from Supabase
+    const fetchConfig = async () => {
+        const { data, error } = await supabase
+            .from('settings')
+            .select('data')
+            .eq('id', 'resume_config')
+            .single();
+        
+        if (data) {
+            setResumeConfig(data.data as ResumeConfig);
+        } else {
+            setResumeConfig(initialResumeConfig);
+        }
+    };
+
+    fetchConfig();
+
+    // Load requests from Supabase
+    const fetchRequests = async () => {
+        const { data, error } = await supabase
+            .from('resume_requests')
+            .select('*')
+            .order('requestedAt', { ascending: false });
+        
+        if (data) {
+            setResumeRequests(data as ResumeRequest[]);
+        }
+    };
+
+    fetchRequests();
+
+    // Subscriptions
+    const configSubscription = supabase
+        .channel('resume_config-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: 'id=eq.resume_config' }, (payload) => {
+            if (payload.new) {
+                setResumeConfig((payload.new as any).data as ResumeConfig);
+            }
+        })
+        .subscribe();
+
+    const requestsSubscription = supabase
+        .channel('resume_requests-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'resume_requests' }, (payload) => {
+            if (payload.eventType === 'INSERT') {
+                setResumeRequests(prev => [payload.new as ResumeRequest, ...prev]);
+            } else if (payload.eventType === 'UPDATE') {
+                setResumeRequests(prev => prev.map(r => r.id === payload.new.id ? payload.new as ResumeRequest : r));
+            } else if (payload.eventType === 'DELETE') {
+                setResumeRequests(prev => prev.filter(r => r.id !== payload.old.id));
+            }
+        })
+        .subscribe();
+
+    return () => {
+        supabase.removeChannel(configSubscription);
+        supabase.removeChannel(requestsSubscription);
+    };
   }, []);
 
   useEffect(() => {
@@ -170,8 +225,7 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const addResumeRequest = async (details: { userName: string; userWhatsapp: string; }): Promise<ResumeRequest> => {
-    const newRequest: ResumeRequest = {
-      id: Date.now().toString(),
+    const newRequestData = {
       userId: user?.id || null,
       userName: details.userName,
       userWhatsapp: details.userWhatsapp,
@@ -180,9 +234,13 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       resumeData: { ...resumeData },
     };
 
-    const updated = [newRequest, ...resumeRequests];
-    setResumeRequests(updated);
-    setLocalData('resume_requests', updated);
+    const { data, error } = await supabase
+        .from('resume_requests')
+        .insert([newRequestData])
+        .select()
+        .single();
+    
+    if (error) throw error;
 
     if (user) {
       await addNotification(
@@ -193,15 +251,18 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       );
     }
 
-    return newRequest;
+    return data as ResumeRequest;
   };
 
   const updateRequestStatus = async (id: string, status: 'pending' | 'authorized') => {
     const request = resumeRequests.find(r => r.id === id);
     if (request) {
-        const updated = resumeRequests.map(r => r.id === id ? { ...r, status } : r);
-        setResumeRequests(updated);
-        setLocalData('resume_requests', updated);
+        const { error } = await supabase
+            .from('resume_requests')
+            .update({ status })
+            .eq('id', id);
+        
+        if (error) throw error;
         
         if (request.userId) {
           let title = 'Atualização do Currículo';
@@ -219,17 +280,20 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const deleteResumeRequest = async (id: string) => {
-    const updated = resumeRequests.filter(req => req.id !== id);
-    setResumeRequests(updated);
-    setLocalData('resume_requests', updated);
+    const { error } = await supabase
+        .from('resume_requests')
+        .delete()
+        .eq('id', id);
+    
+    if (error) throw error;
   };
   
   const getRequestsByUserId = (userId: string) => {
-    return resumeRequests.filter(req => req.userId === userId).sort((a,b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+    return resumeRequests.filter(req => req.userId === userId);
   };
 
   const getAllRequests = () => {
-    return [...resumeRequests].sort((a,b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+    return resumeRequests;
   };
 
   const getRequestById = (id: string) => {
@@ -246,8 +310,15 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const updateResumeConfig = async (newConfig: Partial<ResumeConfig>) => {
     const fullNewConfig = { ...resumeConfig, ...newConfig };
-    setResumeConfig(fullNewConfig);
-    setLocalData('resumeConfig', fullNewConfig);
+    try {
+        const { error } = await supabase
+            .from('settings')
+            .upsert({ id: 'resume_config', data: fullNewConfig });
+        
+        if (error) throw error;
+    } catch (e) {
+        console.error("Error updating resume config:", e);
+    }
   };
 
   const capitalizeWords = (str: string) => {
@@ -330,24 +401,49 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const saveSuggestion = async (type: 'role' | 'school' | 'course' | 'company', text: string, state?: string, city?: string) => {
     if (!text || text.length < 2) return;
-    const suggestions = getLocalData<any[]>('suggestions', []);
     const formattedText = text.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
     
-    const existing = suggestions.find(s => s.type === type && s.text === formattedText && s.state === (state || null) && s.city === (city || null));
+    const { data, error } = await supabase
+        .from('suggestions')
+        .select('*')
+        .eq('type', type)
+        .eq('text', formattedText)
+        .eq('state', state || null)
+        .eq('city', city || null)
+        .single();
     
-    if (existing) {
-        const updated = suggestions.map(s => s === existing ? { ...s, count: (s.count || 0) + 1 } : s);
-        setLocalData('suggestions', updated);
+    if (data) {
+        await supabase
+            .from('suggestions')
+            .update({ count: (data.count || 0) + 1 })
+            .eq('id', data.id);
     } else {
-        const updated = [...suggestions, { type, text: formattedText, state: state || null, city: city || null, count: 1, createdAt: new Date().toISOString() }];
-        setLocalData('suggestions', updated);
+        await supabase
+            .from('suggestions')
+            .insert([{
+                type,
+                text: formattedText,
+                state: state || null,
+                city: city || null,
+                count: 1,
+                createdAt: new Date().toISOString()
+            }]);
     }
   };
 
   const getSuggestions = async (type: 'role' | 'school' | 'course' | 'company', state?: string, city?: string): Promise<string[]> => {
-    const suggestions = getLocalData<any[]>('suggestions', []);
-    const filtered = suggestions.filter(s => s.type === type && (!state || s.state === state) && (!city || s.city === city));
-    return Array.from(new Set(filtered.map(s => s.text))).slice(0, 20);
+    let query = supabase
+        .from('suggestions')
+        .select('text')
+        .eq('type', type)
+        .order('count', { ascending: false })
+        .limit(20);
+    
+    if (state) query = query.eq('state', state);
+    if (city) query = query.eq('city', city);
+
+    const { data, error } = await query;
+    return (data || []).map(d => d.text);
   };
 
   const updateInformatics = (field: keyof InformaticsData | `skills.${keyof InformaticsData['skills']}`, value: any) => {

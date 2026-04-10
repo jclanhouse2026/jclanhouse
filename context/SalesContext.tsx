@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 
 export type SaleStatus = 'orcamento' | 'em_aberto' | 'finalizado' | 'cancelado';
 
@@ -18,7 +18,7 @@ export type Sale = {
   customerName: string;
   phone: string;
   total: number;
-  dateTime: Date;
+  dateTime: string; // Changed to string for Supabase compatibility
   items: SaleItem[];
   amountPaid?: number;
   paymentMethod?: string;
@@ -39,17 +39,36 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const { user } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
 
-  const fetchSales = useCallback(() => {
-    const data = getLocalData<any[]>('sales', []);
-    const formattedData = data.map(item => ({
-        ...item,
-        dateTime: new Date(item.dateTime)
-    }));
-    setSales(formattedData);
+  const fetchSales = useCallback(async () => {
+    const { data, error } = await supabase
+        .from('sales')
+        .select('*')
+        .order('dateTime', { ascending: false });
+    
+    if (data) {
+        setSales(data as Sale[]);
+    }
   }, []);
 
   useEffect(() => {
     fetchSales();
+
+    const subscription = supabase
+        .channel('sales-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, (payload) => {
+            if (payload.eventType === 'INSERT') {
+                setSales(prev => [payload.new as Sale, ...prev]);
+            } else if (payload.eventType === 'UPDATE') {
+                setSales(prev => prev.map(s => s.id === payload.new.id ? payload.new as Sale : s));
+            } else if (payload.eventType === 'DELETE') {
+                setSales(prev => prev.filter(s => s.id !== payload.old.id));
+            }
+        })
+        .subscribe();
+
+    return () => {
+        supabase.removeChannel(subscription);
+    };
   }, [fetchSales]);
 
   const salesForCurrentUser = useMemo(() => {
@@ -61,29 +80,38 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const addSale = async (saleData: Omit<Sale, 'id' | 'userId' | 'dateTime'>): Promise<Sale> => {
     if (!user) throw new Error("Usuário não está logado para registrar venda.");
     
-    const newSale: Sale = {
+    const newSale = {
       ...saleData,
-      id: Date.now().toString(),
       userId: user.id,
-      dateTime: new Date(),
+      dateTime: new Date().toISOString(),
     };
     
-    const updated = [newSale, ...sales];
-    setSales(updated);
-    setLocalData('sales', updated);
-    return newSale;
+    const { data, error } = await supabase
+        .from('sales')
+        .insert([newSale])
+        .select()
+        .single();
+    
+    if (error) throw error;
+    return data as Sale;
   };
 
   const updateSale = async (id: string, saleData: Partial<Sale>) => {
-      const updated = sales.map(s => s.id === id ? { ...s, ...saleData } : s);
-      setSales(updated);
-      setLocalData('sales', updated);
+      const { error } = await supabase
+          .from('sales')
+          .update(saleData)
+          .eq('id', id);
+      
+      if (error) throw error;
   };
 
   const deleteSale = async (id: string) => {
-      const updated = sales.filter(s => s.id !== id);
-      setSales(updated);
-      setLocalData('sales', updated);
+      const { error } = await supabase
+          .from('sales')
+          .delete()
+          .eq('id', id);
+      
+      if (error) throw error;
   };
 
   return (

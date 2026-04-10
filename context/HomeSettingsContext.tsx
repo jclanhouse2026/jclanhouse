@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { HomeSettings } from '../types';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 
 const initialSettings: HomeSettings = {
   hero: { 
@@ -56,17 +56,41 @@ export const HomeSettingsProvider: React.FC<{ children: ReactNode }> = ({ childr
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSettings = () => {
-        const data = getLocalData<HomeSettings>('home_settings', initialSettings);
-        setSettings(data);
-        setLoading(false);
+    const fetchSettings = async () => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('settings')
+                .select('data')
+                .eq('id', 'home_settings')
+                .single();
+            
+            if (data) {
+                setSettings({ ...initialSettings, ...data.data });
+            } else {
+                setSettings(initialSettings);
+            }
+        } catch (error) {
+            console.error("Error fetching home settings:", error);
+            setSettings(initialSettings);
+        } finally {
+            setLoading(false);
+        }
     };
     fetchSettings();
   }, []);
 
   const updateSettings = async (newSettings: HomeSettings) => {
     setSettings(newSettings);
-    setLocalData('home_settings', newSettings);
+    try {
+        const { error } = await supabase
+            .from('settings')
+            .upsert({ id: 'home_settings', data: newSettings });
+        
+        if (error) throw error;
+    } catch (error) {
+        console.error("Error updating home settings:", error);
+    }
   };
 
   return (

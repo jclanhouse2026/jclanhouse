@@ -1,11 +1,10 @@
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from './firebase';
+import { supabase } from './supabase';
 
 /**
- * Uploads a file to Firebase Storage and returns the download URL.
+ * Uploads a file to Supabase Storage and returns the public URL.
  * @param file The file to upload
  * @param path The path in storage
- * @returns Promise<string> The download URL
+ * @returns Promise<string> The public URL
  */
 export const uploadFile = async (file: File | Blob, path: string): Promise<string> => {
   if (!file) {
@@ -16,31 +15,33 @@ export const uploadFile = async (file: File | Blob, path: string): Promise<strin
     // Sanitize path to avoid issues with special characters
     const sanitizedPath = path.split('/').map(part => part.replace(/[^a-zA-Z0-9._-]/g, '_')).join('/');
     
-    const storageRef = ref(storage, sanitizedPath);
-    
-    // Set metadata to help Firebase identify the file type
-    const metadata = {
-      contentType: file.type || 'image/webp',
-    };
+    // Upload to 'images' bucket
+    const { data, error } = await supabase.storage
+      .from('images')
+      .upload(sanitizedPath, file, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: file.type || 'image/webp'
+      });
 
-    const snapshot = await uploadBytes(storageRef, file, metadata);
-    const downloadURL = await getDownloadURL(snapshot.ref);
+    if (error) throw error;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(sanitizedPath);
     
-    if (!downloadURL || !downloadURL.startsWith('http')) {
+    if (!publicUrl) {
       throw new Error("Falha ao obter URL pública do arquivo.");
     }
 
-    return downloadURL;
+    return publicUrl;
   } catch (error: any) {
     console.error("Erro detalhado no upload:", error);
     
-    // Specific error messages for common Firebase Storage issues
-    if (error.code === 'storage/unauthorized') {
+    if (error.status === 403) {
       throw new Error("Sem permissão para fazer upload. Verifique se você está logado.");
-    } else if (error.code === 'storage/quota-exceeded') {
+    } else if (error.message?.includes('quota')) {
       throw new Error("Cota de armazenamento excedida. Tente novamente mais tarde.");
-    } else if (error.code === 'storage/retry-limit-exceeded') {
-      throw new Error("O upload demorou muito tempo. Verifique sua conexão.");
     }
     
     throw new Error(`Erro ao enviar imagem: ${error.message || 'Erro desconhecido'}`);

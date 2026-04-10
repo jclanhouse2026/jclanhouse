@@ -9,7 +9,7 @@ import CheckBadgeIcon from '../../components/icons/CheckBadgeIcon';
 type Tab = 'general' | 'appearance' | 'account';
 
 const AdminSettingsPage: React.FC = () => {
-  const { user, adminUpdateUser, refetchUser } = useAuth();
+  const { user, adminUpdateUser, refetchUser, uploadFile } = useAuth();
   const { settings, updateSettings } = useSettings();
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -27,9 +27,11 @@ const AdminSettingsPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   
   const [error, setError] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -53,6 +55,7 @@ const AdminSettingsPage: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
         const file = e.target.files[0];
+        setAvatarFile(file);
         const reader = new FileReader();
         reader.onloadend = () => {
             setAvatarUrl(reader.result as string);
@@ -65,27 +68,37 @@ const AdminSettingsPage: React.FC = () => {
   const handleSave = async () => {
     setError('');
     setShowSuccess(false);
+    setIsSaving(true);
     
     try {
         if (activeTab === 'account') {
             if (newPassword && newPassword !== confirmPassword) {
                 setError('As novas senhas não correspondem.');
+                setIsSaving(false);
                 return;
             }
             if (!user) {
                 setError('Usuário admin não encontrado para atualizar.');
+                setIsSaving(false);
                 return;
             }
             if (!adminUsername.trim()) {
                 setError('O nome de usuário (login) não pode estar vazio.');
+                setIsSaving(false);
                 return;
+            }
+
+            let finalAvatarUrl = avatarUrl;
+            if (avatarFile) {
+                finalAvatarUrl = await uploadFile(avatarFile, `avatars/${user.id}_${Date.now()}`);
+                setAvatarFile(null);
             }
 
             const updates: Partial<User> = {
                 name: adminName,
                 username: adminUsername,
                 email: adminEmail,
-                avatarUrl: avatarUrl
+                avatarUrl: finalAvatarUrl
             };
             if (newPassword) {
                 updates.password = newPassword;
@@ -108,6 +121,8 @@ const AdminSettingsPage: React.FC = () => {
         } else {
             setError('Ocorreu um erro desconhecido ao salvar.');
         }
+    } finally {
+        setIsSaving(false);
     }
   };
 
@@ -228,8 +243,16 @@ const AdminSettingsPage: React.FC = () => {
           )}
         </div>
         <div className="p-6 bg-slate-800/50 border-t border-slate-700 text-right">
-            <button onClick={handleSave} className="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition-colors relative">
-                Salvar Alterações
+            <button 
+                onClick={handleSave} 
+                disabled={isSaving}
+                className="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition-colors relative disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-auto"
+            >
+                {isSaving ? (
+                    <><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div> Salvando...</>
+                ) : (
+                    'Salvar Alterações'
+                )}
                 {showSuccess && <span className="absolute -top-2 -right-2 text-xs bg-emerald-500 text-white rounded-full px-2 py-0.5 animate-pulse">Salvo!</span>}
             </button>
         </div>

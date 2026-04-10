@@ -64,7 +64,7 @@ const RecibosModule: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                                 >
                                     <div className="font-bold text-white truncate">{sale.customerName}</div>
                                     <div className="flex justify-between text-sm mt-1">
-                                        <span className="text-slate-400">{sale.dateTime.toLocaleDateString('pt-BR')}</span>
+                                        <span className="text-slate-400">{new Date(sale.dateTime).toLocaleDateString('pt-BR')}</span>
                                         <span className="text-cyan-400 font-medium">{formatCurrency(sale.total)}</span>
                                     </div>
                                 </button>
@@ -93,7 +93,7 @@ const RecibosModule: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                                     <p className="text-sm text-gray-600">{companyInfo.email}</p>
                                     <div className="mt-4 text-sm">
                                         <p><strong>RECIBO DE VENDA</strong></p>
-                                        <p className="text-gray-500">{selectedSale.dateTime.toLocaleString('pt-BR')}</p>
+                                        <p className="text-gray-500">{new Date(selectedSale.dateTime).toLocaleString('pt-BR')}</p>
                                     </div>
                                 </div>
 

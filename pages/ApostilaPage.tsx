@@ -20,9 +20,8 @@ import {
   Calculator,
   Info
 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
+import { supabase } from '../lib/supabase';
+import { handleDatabaseError, OperationType } from '../lib/errorHandlers';
 import { useNavigate } from 'react-router-dom';
 import { generateOrderNumber } from '../lib/orderUtils';
 
@@ -114,10 +113,14 @@ const ApostilaPage: React.FC = () => {
         subtotal: calculations.subtotal,
         total: calculations.total,
         status: 'pending',
-        created_at: serverTimestamp()
+        created_at: new Date().toISOString()
       };
 
-      await addDoc(collection(db, 'apostila_orders'), orderData);
+      const { error } = await supabase
+        .from('apostila_orders')
+        .insert([orderData]);
+      
+      if (error) throw error;
       
       // Also send to WhatsApp if needed
       const message = `*Novo Pedido de Apostila (Pedido #${orderNumber})*%0A%0A` +
@@ -137,7 +140,7 @@ const ApostilaPage: React.FC = () => {
       setTimeout(() => setOrderSuccess(false), 5000);
     } catch (error) {
       console.error('Error submitting order:', error);
-      handleFirestoreError(error, OperationType.CREATE, 'apostila_orders');
+      handleDatabaseError(error, OperationType.CREATE, 'apostila_orders');
     } finally {
       setIsSubmitting(false);
     }

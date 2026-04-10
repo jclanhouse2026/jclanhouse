@@ -1,6 +1,5 @@
-
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 
 interface AppSettings {
   githubToken?: string;
@@ -41,10 +40,26 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSettings = () => {
-      const data = getLocalData<AppSettings>('app_settings', defaultSettings);
-      setSettings(data);
-      setLoading(false);
+    const fetchSettings = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+            .from('settings')
+            .select('data')
+            .eq('id', 'app_settings')
+            .single();
+        
+        if (data) {
+          setSettings({ ...defaultSettings, ...data.data });
+        } else {
+          setSettings(defaultSettings);
+        }
+      } catch (error) {
+        console.error("Error fetching settings:", error);
+        setSettings(defaultSettings);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchSettings();
@@ -53,7 +68,15 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const updateSettings = async (newSettings: Partial<AppSettings>) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
-    setLocalData('app_settings', updated);
+    try {
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ id: 'app_settings', data: updated });
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error updating settings:", error);
+    }
   };
 
   return (

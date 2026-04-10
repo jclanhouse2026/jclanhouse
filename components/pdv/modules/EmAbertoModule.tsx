@@ -45,7 +45,7 @@ const EmAbertoModule: React.FC<{ onBack: () => void, onEdit: (sale: Sale) => voi
                                     <div>
                                         <h3 className="text-lg font-bold text-white">{sale.customerName}</h3>
                                         <p className="text-xs text-slate-400">
-                                            {sale.dateTime.toLocaleDateString('pt-BR')} {sale.dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            {new Date(sale.dateTime).toLocaleDateString('pt-BR')} {new Date(sale.dateTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                         </p>
                                     </div>
                                     <div className="text-xl font-bold text-cyan-400">

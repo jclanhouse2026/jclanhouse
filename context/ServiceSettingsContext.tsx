@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { ServiceSetting } from '../types';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 
 interface ServiceSettingsContextType {
   serviceSettings: ServiceSetting[];
@@ -13,21 +13,52 @@ export const ServiceSettingsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [serviceSettings, setServiceSettings] = useState<ServiceSetting[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchSettings = () => {
-    setLoading(true);
-    const data = getLocalData<ServiceSetting[]>('service_settings', []);
-    setServiceSettings(data);
-    setLoading(false);
-  };
-
   useEffect(() => {
+    setLoading(true);
+    
+    const fetchSettings = async () => {
+        const { data, error } = await supabase
+            .from('settings')
+            .select('data')
+            .eq('id', 'services')
+            .single();
+        
+        if (data) {
+            setServiceSettings(data.data.settings || []);
+        } else {
+            setServiceSettings([]);
+        }
+        setLoading(false);
+    };
+
     fetchSettings();
+
+    const subscription = supabase
+        .channel('services-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: 'id=eq.services' }, (payload) => {
+            if (payload.new) {
+                const data = payload.new as any;
+                setServiceSettings(data.data.settings || []);
+            }
+        })
+        .subscribe();
+
+    return () => {
+        supabase.removeChannel(subscription);
+    };
   }, []);
 
   const updateServiceSettings = async (newSettings: ServiceSetting[]) => {
     const updated = newSettings.map(s => s.id ? s : { ...s, id: Date.now().toString() + Math.random() });
-    setServiceSettings(updated);
-    setLocalData('service_settings', updated);
+    try {
+        const { error } = await supabase
+            .from('settings')
+            .upsert({ id: 'services', data: { settings: updated } });
+        
+        if (error) throw error;
+    } catch (e) {
+        console.error("Error updating service settings:", e);
+    }
   };
 
   return (

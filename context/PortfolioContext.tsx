@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import type { PortfolioProduct } from '../types';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
 
@@ -15,16 +15,26 @@ interface PortfolioContextType {
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
 
 export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, uploadFile } = useAuth();
   const { sendNotificationToAll } = useNotifications();
   const [products, setProducts] = useState<PortfolioProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchPortfolio = useCallback(() => {
+  const fetchPortfolio = useCallback(async () => {
     setLoading(true);
-    const data = getLocalData<PortfolioProduct[]>('portfolio_products', []);
-    setProducts(data);
-    setLoading(false);
+    try {
+        const { data, error } = await supabase
+            .from('portfolio_products')
+            .select('*')
+            .order('name', { ascending: true });
+        
+        if (error) throw error;
+        setProducts(data || []);
+    } catch (error) {
+        console.error("Error fetching portfolio:", error);
+    } finally {
+        setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -36,28 +46,31 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     
     const { images, ...productInfo } = productData;
     
-    // Convert images to data URLs if they have files
+    // Upload images to Supabase Storage
     const processedImages = await Promise.all(images.map(async (img) => {
         if (img.file) {
-            const url = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.readAsDataURL(img.file!);
-            });
+            const path = `portfolio/${Date.now()}_${img.file.name}`;
+            const url = await uploadFile(img.file, path);
             return { id: Date.now().toString() + Math.random(), url };
         }
         return { id: img.id, url: img.url };
     }));
 
-    const newProduct: PortfolioProduct = {
+    const newProduct = {
         ...productInfo,
-        id: Date.now().toString(),
-        images: processedImages
+        images: processedImages,
+        createdAt: new Date().toISOString()
     };
 
-    const updated = [...products, newProduct];
-    setProducts(updated);
-    setLocalData('portfolio_products', updated);
+    const { data, error } = await supabase
+        .from('portfolio_products')
+        .insert([newProduct])
+        .select()
+        .single();
+    
+    if (error) throw error;
+    
+    setProducts(prev => [data as PortfolioProduct, ...prev]);
 
     await sendNotificationToAll(
       'Novo Produto Disponível!',
@@ -71,25 +84,32 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
 
     const processedImages = await Promise.all(images.map(async (img) => {
         if (img.file) {
-            const url = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.readAsDataURL(img.file!);
-            });
+            const path = `portfolio/${Date.now()}_${img.file.name}`;
+            const url = await uploadFile(img.file, path);
             return { id: Date.now().toString() + Math.random(), url };
         }
         return { id: img.id, url: img.url };
     }));
 
-    const updated = products.map(p => p.id === id ? { ...p, ...productInfo, images: processedImages } : p);
-    setProducts(updated);
-    setLocalData('portfolio_products', updated);
+    const updateData = { ...productInfo, images: processedImages };
+    const { error } = await supabase
+        .from('portfolio_products')
+        .update(updateData)
+        .eq('id', id);
+    
+    if (error) throw error;
+
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updateData } : p));
   };
 
   const deleteProduct = async (productId: string) => {
-    const updated = products.filter(p => p.id !== productId);
-    setProducts(updated);
-    setLocalData('portfolio_products', updated);
+    const { error } = await supabase
+        .from('portfolio_products')
+        .delete()
+        .eq('id', productId);
+    
+    if (error) throw error;
+    setProducts(prev => prev.filter(p => p.id !== productId));
   };
 
   return (

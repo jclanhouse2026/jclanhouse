@@ -153,7 +153,7 @@ const SaleModal: React.FC<{
         });
     };
     
-    const removeFromCart = (productId: number) => {
+    const removeFromCart = (productId: string | number) => {
         setCart(prev => prev.filter(item => item.id !== productId));
     };
 

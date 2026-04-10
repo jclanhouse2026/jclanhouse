@@ -1,10 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useHomeSettings } from '../../context/HomeSettingsContext';
+import { useAuth } from '../../context/AuthContext';
 import { iconOptions, IconMap } from '../../components/IconMap';
 import PlusIcon from '../../components/icons/PlusIcon';
 import TrashIcon from '../../components/icons/TrashIcon';
 import HomeModernIcon from '../../components/icons/HomeModernIcon';
+import UploadIcon from '../../components/icons/UploadIcon';
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
@@ -32,17 +34,52 @@ const SelectField: React.FC<{label: string; value: string; onChange: (e: React.C
 
 const AdminHomeSettingsPage: React.FC = () => {
     const { settings, updateSettings } = useHomeSettings();
+    const { uploadFile } = useAuth();
     const [localSettings, setLocalSettings] = useState(settings);
     const [showSuccess, setShowSuccess] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [heroFile, setHeroFile] = useState<File | null>(null);
+    const heroInputRef = useRef<HTMLInputElement>(null);
     
-    const handleSave = () => {
-        updateSettings(localSettings);
-        setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 2000);
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            let finalHeroUrl = localSettings.hero.imageUrl;
+            if (heroFile) {
+                finalHeroUrl = await uploadFile(heroFile, `home/hero_${Date.now()}`);
+                setHeroFile(null);
+            }
+
+            const updated = { 
+                ...localSettings, 
+                hero: { ...localSettings.hero, imageUrl: finalHeroUrl } 
+            };
+            
+            await updateSettings(updated);
+            setShowSuccess(true);
+            setTimeout(() => setShowSuccess(false), 2000);
+        } catch (error) {
+            console.error("Error saving home settings:", error);
+            alert("Erro ao salvar configurações.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleHeroChange = (field: keyof typeof localSettings.hero, value: string) => {
         setLocalSettings(prev => ({...prev, hero: {...prev.hero, [field]: value }}));
+    };
+
+    const handleHeroImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
+            setHeroFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                handleHeroChange('imageUrl', reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleMugBannerChange = (field: string, value: any) => {
@@ -118,17 +155,43 @@ const AdminHomeSettingsPage: React.FC = () => {
                     <HomeModernIcon className="w-6 h-6" />
                     Configurações da Página Inicial
                 </h1>
-                <button onClick={handleSave} className="bg-cyan-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-600 transition-colors relative">
-                    Salvar Alterações
+                <button 
+                    onClick={handleSave} 
+                    disabled={isSaving}
+                    className="bg-cyan-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-600 transition-colors relative disabled:opacity-50 flex items-center gap-2"
+                >
+                    {isSaving ? (
+                        <><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div> Salvando...</>
+                    ) : (
+                        'Salvar Alterações'
+                    )}
                     {showSuccess && <span className="absolute -top-2 -right-2 text-xs bg-emerald-500 text-white rounded-full px-2 py-0.5">Salvo!</span>}
                 </button>
             </div>
 
             <div className="space-y-6">
                 <Section title="Banner Principal (Hero)">
-                    <InputField label="URL da Imagem de Fundo" value={localSettings.hero.imageUrl} onChange={e => handleHeroChange('imageUrl', e.target.value)} />
-                    <InputField label="Título Principal" value={localSettings.hero.title} onChange={e => handleHeroChange('title', e.target.value)} />
-                    <InputField label="Subtítulo" value={localSettings.hero.subtitle} onChange={e => handleHeroChange('subtitle', e.target.value)} />
+                    <div className="flex flex-col md:flex-row gap-6">
+                        <div className="w-full md:w-1/3">
+                            <label className="text-sm font-bold text-slate-300 block mb-2">Imagem de Fundo</label>
+                            <div className="relative group">
+                                <img src={localSettings.hero.imageUrl} alt="Hero Preview" className="w-full aspect-video object-cover rounded-lg border border-slate-700" />
+                                <button 
+                                    onClick={() => heroInputRef.current?.click()}
+                                    className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white rounded-lg"
+                                >
+                                    <UploadIcon className="w-8 h-8 mb-2" />
+                                    <span className="text-sm font-bold">Alterar Imagem</span>
+                                </button>
+                                <input type="file" ref={heroInputRef} onChange={handleHeroImageUpload} className="hidden" accept="image/*" />
+                            </div>
+                        </div>
+                        <div className="flex-grow space-y-4">
+                            <InputField label="URL da Imagem (ou use o upload ao lado)" value={localSettings.hero.imageUrl} onChange={e => handleHeroChange('imageUrl', e.target.value)} />
+                            <InputField label="Título Principal" value={localSettings.hero.title} onChange={e => handleHeroChange('title', e.target.value)} />
+                            <InputField label="Subtítulo" value={localSettings.hero.subtitle} onChange={e => handleHeroChange('subtitle', e.target.value)} />
+                        </div>
+                    </div>
                 </Section>
 
                 <Section title="Banner de Temas de Caneca (Home)">

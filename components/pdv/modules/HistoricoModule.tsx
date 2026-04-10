@@ -16,7 +16,7 @@ const HistoricoModule: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const filteredSales = useMemo(() => {
         return finalizedSales.filter(sale => {
             const matchesSearch = sale.customerName.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesDate = dateFilter ? sale.dateTime.toISOString().split('T')[0] === dateFilter : true;
+            const matchesDate = dateFilter ? new Date(sale.dateTime).toISOString().split('T')[0] === dateFilter : true;
             return matchesSearch && matchesDate;
         });
     }, [finalizedSales, searchTerm, dateFilter]);
@@ -74,7 +74,7 @@ const HistoricoModule: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                                 <div>
                                     <h3 className="text-lg font-bold text-white mb-1">{sale.customerName}</h3>
                                     <p className="text-sm text-slate-400 mb-2">
-                                        {sale.dateTime.toLocaleDateString('pt-BR')} às {sale.dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(sale.dateTime).toLocaleDateString('pt-BR')} às {new Date(sale.dateTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                     <div className="text-sm text-slate-300">
                                         {sale.items.map((item, idx) => (

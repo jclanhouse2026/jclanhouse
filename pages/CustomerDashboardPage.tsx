@@ -48,7 +48,7 @@ const CustomerDashboardPage: React.FC = () => {
                             {recentOrders.map(order => (
                                 <tr key={order.id} className="border-b border-slate-700/50 hover:bg-slate-700/50">
                                     <td className="py-4 pr-3 font-medium text-cyan-400">#{String(order.id).slice(-6)}</td>
-                                    <td className="py-4 px-3 text-slate-300">{order.dateTime.toLocaleDateString('pt-BR')}</td>
+                                    <td className="py-4 px-3 text-slate-300">{new Date(order.dateTime).toLocaleDateString('pt-BR')}</td>
                                     <td className="py-4 px-3">
                                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusClass(order.amountPaid && order.amountPaid >= (order.total || 0) ? 'Pago' : 'Pendente')}`}>
                                             {order.amountPaid && order.amountPaid >= (order.total || 0) ? 'Pago' : 'Pendente'}

@@ -1,10 +1,11 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import type { Category } from '../types';
-import { getLocalData, setLocalData } from '../lib/storage_helper';
+import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
 interface CategoryContextType {
   categories: Category[];
+  loading: boolean;
   addCategory: (name: string) => Promise<void>;
   updateCategory: (id: string, name: string) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
@@ -20,71 +21,117 @@ export const CategoryProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchCategories = () => {
+  const fetchCategories = useCallback(async () => {
     setLoading(true);
-    const data = getLocalData<Category[]>('categories', []);
-    setCategories(data);
-    setLoading(false);
-  };
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name', { ascending: true });
+      
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchCategories();
-  }, []);
+
+    // Real-time subscription
+    const subscription = supabase
+      .channel('categories_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
+        fetchCategories();
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchCategories]);
 
   const addCategory = async (name: string) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar categoria.");
 
-    const newCategory: Category = { id: Date.now().toString(), name, subcategories: [] };
-    const updated = [...categories, newCategory];
-    setCategories(updated);
-    setLocalData('categories', updated);
+    const { error } = await supabase
+      .from('categories')
+      .insert([{ name, subcategories: [] }]);
+    
+    if (error) throw error;
   };
 
   const updateCategory = async (id: string, name: string) => {
-    const updated = categories.map(cat => cat.id === id ? { ...cat, name } : cat);
-    setCategories(updated);
-    setLocalData('categories', updated);
+    const { error } = await supabase
+      .from('categories')
+      .update({ name })
+      .eq('id', id);
+    
+    if (error) throw error;
   };
 
   const deleteCategory = async (id: string) => {
-    const updated = categories.filter(cat => cat.id !== id);
-    setCategories(updated);
-    setLocalData('categories', updated);
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
   };
   
   const addSubcategory = async (parentId: string, name: string) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar subcategoria.");
 
-    const updated = categories.map(cat => 
-        cat.id === parentId ? { ...cat, subcategories: [...cat.subcategories, { id: Date.now().toString() + Math.random(), name }] } : cat
-    );
-    setCategories(updated);
-    setLocalData('categories', updated);
+    const category = categories.find(c => c.id === parentId);
+    if (!category) return;
+
+    const newSub = { id: (Date.now() + Math.random()).toString(), name };
+    const updatedSubcategories = [...(category.subcategories || []), newSub];
+
+    const { error } = await supabase
+      .from('categories')
+      .update({ subcategories: updatedSubcategories })
+      .eq('id', parentId);
+    
+    if (error) throw error;
   };
 
   const updateSubcategory = async (parentId: string, subId: string, name: string) => {
-    const updated = categories.map(cat => 
-        cat.id === parentId 
-            ? { ...cat, subcategories: cat.subcategories.map(sub => sub.id === subId ? { ...sub, name } : sub) }
-            : cat
+    const category = categories.find(c => c.id === parentId);
+    if (!category) return;
+
+    const updatedSubcategories = category.subcategories.map(sub => 
+      sub.id === subId ? { ...sub, name } : sub
     );
-    setCategories(updated);
-    setLocalData('categories', updated);
+
+    const { error } = await supabase
+      .from('categories')
+      .update({ subcategories: updatedSubcategories })
+      .eq('id', parentId);
+    
+    if (error) throw error;
   };
 
   const deleteSubcategory = async (parentId: string, subId: string) => {
-    const updated = categories.map(cat => 
-        cat.id === parentId 
-            ? { ...cat, subcategories: cat.subcategories.filter(sub => sub.id !== subId) }
-            : cat
-    );
-    setCategories(updated);
-    setLocalData('categories', updated);
+    const category = categories.find(c => c.id === parentId);
+    if (!category) return;
+
+    const updatedSubcategories = category.subcategories.filter(sub => sub.id !== subId);
+
+    const { error } = await supabase
+      .from('categories')
+      .update({ subcategories: updatedSubcategories })
+      .eq('id', parentId);
+    
+    if (error) throw error;
   };
 
   return (
-    <CategoryContext.Provider value={{ categories, addCategory, updateCategory, deleteCategory, addSubcategory, updateSubcategory, deleteSubcategory }}>
-      {!loading && children}
+    <CategoryContext.Provider value={{ categories, loading, addCategory, updateCategory, deleteCategory, addSubcategory, updateSubcategory, deleteSubcategory }}>
+      {children}
     </CategoryContext.Provider>
   );
 };
