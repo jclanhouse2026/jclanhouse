@@ -1,7 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { HomeSettings } from '../types';
-import { db } from '../lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
 
 const initialSettings: HomeSettings = {
   hero: { 
@@ -57,62 +56,17 @@ export const HomeSettingsProvider: React.FC<{ children: ReactNode }> = ({ childr
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSettings = async () => {
-        setLoading(true);
-        try {
-            const docRef = doc(db, 'home_settings', 'default');
-            const docSnap = await getDoc(docRef);
-            
-            if (docSnap.exists() && docSnap.data().settings) {
-                const fetched = docSnap.data().settings;
-                // Faz um "deep merge" para garantir que todas as chaves esperadas existam,
-                // prevenindo erros de "cannot read property of undefined".
-                const fetchedHero = fetched.hero || {};
-                const mergedSettings: HomeSettings = {
-                    hero: { 
-                        ...initialSettings.hero, 
-                        ...fetchedHero,
-                        imageUrl: fetchedHero.imageUrl || initialSettings.hero.imageUrl,
-                        title: fetchedHero.title || initialSettings.hero.title,
-                        subtitle: fetchedHero.subtitle || initialSettings.hero.subtitle
-                    },
-                    categories: fetched.categories && fetched.categories.length > 0 ? fetched.categories : initialSettings.categories,
-                    differentials: fetched.differentials && fetched.differentials.length > 0 ? fetched.differentials : initialSettings.differentials,
-                    footer: {
-                        ...initialSettings.footer,
-                        ...(fetched.footer || {}),
-                        contact: { ...initialSettings.footer.contact, ...(fetched.footer?.contact || {}) },
-                        siteLinks: fetched.footer?.siteLinks || initialSettings.footer.siteLinks,
-                        serviceLinks: fetched.footer?.serviceLinks || initialSettings.footer.serviceLinks,
-                    },
-                    mugThemesBanner: {
-                        ...initialSettings.mugThemesBanner!,
-                        ...(fetched.mugThemesBanner || {})
-                    }
-                };
-                setSettings(mergedSettings);
-            } else {
-                // Se não houver dados no banco, usa os dados iniciais.
-                setSettings(initialSettings);
-            }
-        } catch (error) {
-        // console.error("Exceção ao buscar configurações da home:", (error as Error).message);
-            setSettings(initialSettings);
-        } finally {
-            setLoading(false);
-        }
+    const fetchSettings = () => {
+        const data = getLocalData<HomeSettings>('home_settings', initialSettings);
+        setSettings(data);
+        setLoading(false);
     };
     fetchSettings();
   }, []);
 
   const updateSettings = async (newSettings: HomeSettings) => {
-    try {
-        const docRef = doc(db, 'home_settings', 'default');
-        await setDoc(docRef, { settings: newSettings }, { merge: true });
-        setSettings(newSettings);
-    } catch (error) {
-        console.error("Erro ao atualizar configurações da home:", (error as Error).message);
-    }
+    setSettings(newSettings);
+    setLocalData('home_settings', newSettings);
   };
 
   return (

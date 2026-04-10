@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { db } from '../lib/firebase';
-import { collection, doc, onSnapshot, query, getDoc, getDocs } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getLocalData } from '../lib/storage_helper';
 
 interface ApostilaSettings {
   id: string;
@@ -31,7 +30,8 @@ interface ApostilaContextType {
 
 const ApostilaContext = createContext<ApostilaContextType | undefined>(undefined);
 
-const defaultSettings: Omit<ApostilaSettings, 'id'> = {
+const defaultSettings: ApostilaSettings = {
+  id: 'default',
   price_bw: 0.15,
   price_color: 0.50,
   price_spiral: 5.00,
@@ -59,30 +59,14 @@ export const ApostilaProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchData = () => {
       setLoading(true);
-      try {
-        // Fetch Settings
-        const settingsDoc = await getDoc(doc(db, 'apostila_settings', 'default'));
-        if (settingsDoc.exists()) {
-          setSettings({ id: settingsDoc.id, ...settingsDoc.data() } as ApostilaSettings);
-        } else {
-          setSettings({ id: 'default', ...defaultSettings });
-        }
-
-        // Fetch Colors
-        const colorsSnapshot = await getDocs(collection(db, 'apostila_colors'));
-        if (colorsSnapshot.empty) {
-          setColors(defaultColors);
-        } else {
-          const colorsData = colorsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ApostilaColor));
-          setColors(colorsData);
-        }
-      } catch (error) {
-        // console.error("Erro ao buscar dados de apostila:", error);
-      } finally {
-        setLoading(false);
-      }
+      const savedSettings = getLocalData<ApostilaSettings>('apostila_settings', defaultSettings);
+      const savedColors = getLocalData<ApostilaColor[]>('apostila_colors', defaultColors);
+      
+      setSettings(savedSettings);
+      setColors(savedColors);
+      setLoading(false);
     };
 
     fetchData();

@@ -1,10 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { db } from '../lib/firebase';
-import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs } from 'firebase/firestore';
-import { uploadFile } from '../lib/storage';
-import { optimizeImage } from '../lib/imageUtils';
-import type { Customer, Address } from '../types';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
+import type { Customer } from '../types';
 
 type CustomerData = Omit<Customer, 'id' | 'userId' | 'signupDate' | 'status'> & { file?: File };
 
@@ -25,30 +22,12 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchCustomers = useCallback(async () => {
-    if (!user) {
-      setCustomers([]);
-      setLoading(false);
-      return;
-    }
-
+  const fetchCustomers = useCallback(() => {
     setLoading(true);
-    try {
-      const customersRef = collection(db, 'customers');
-      const q = user.role === 'admin' ? query(customersRef) : query(customersRef, where('userId', '==', user.id));
-      
-      const querySnapshot = await getDocs(q);
-      const loadedCustomers: Customer[] = [];
-      querySnapshot.forEach((doc) => {
-          loadedCustomers.push({ id: doc.id, ...doc.data() } as Customer);
-      });
-      setCustomers(loadedCustomers);
-    } catch (error) {
-      // console.error("Error fetching customers:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+    const data = getLocalData<Customer[]>('customers', []);
+    setCustomers(data);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     fetchCustomers();
@@ -63,53 +42,48 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (!user) throw new Error("User must be logged in to add a customer");
 
     const { file, ...restData } = customerData;
-    const newCustomerRef = doc(collection(db, 'customers'));
     
+    // Convert file to data URL if present
     let avatarUrl = restData.avatarUrl;
-    let photoURL = restData.photoURL;
-
     if (file) {
-      const optimizedFile = await optimizeImage(file, 400, 400, 0.8);
-      const path = `customers/${newCustomerRef.id}/${Date.now()}_${optimizedFile.name}`;
-      const uploadedUrl = await uploadFile(optimizedFile, path);
-      avatarUrl = uploadedUrl;
-      photoURL = uploadedUrl;
+        avatarUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+        });
     }
 
     const newCustomer: Customer = {
         ...restData,
-        id: newCustomerRef.id,
+        id: Date.now().toString(),
         userId: user.id,
         avatarUrl,
-        photoURL,
+        photoURL: avatarUrl,
         status: 'Ativo',
         signupDate: new Date().toISOString()
     };
 
-    await setDoc(newCustomerRef, newCustomer);
+    const updated = [...customers, newCustomer];
+    setCustomers(updated);
+    setLocalData('customers', updated);
     return newCustomer;
   };
 
   const updateCustomer = async (updatedCustomer: Customer & { file?: File }): Promise<void> => {
     const { file, id, ...restData } = updatedCustomer;
-    const customerRef = doc(db, 'customers', id);
     
     let avatarUrl = restData.avatarUrl;
-    let photoURL = restData.photoURL;
-
     if (file) {
-      const optimizedFile = await optimizeImage(file, 400, 400, 0.8);
-      const path = `customers/${id}/${Date.now()}_${optimizedFile.name}`;
-      const uploadedUrl = await uploadFile(optimizedFile, path);
-      avatarUrl = uploadedUrl;
-      photoURL = uploadedUrl;
+        avatarUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+        });
     }
 
-    await updateDoc(customerRef, { 
-      ...restData,
-      avatarUrl,
-      photoURL
-    });
+    const updated = customers.map(c => c.id === id ? { ...c, ...restData, avatarUrl, photoURL: avatarUrl } : c);
+    setCustomers(updated);
+    setLocalData('customers', updated);
   };
 
   const updateCurrentCustomer = async (userId: string, updates: Partial<Customer> & { file?: File }): Promise<void> => {
@@ -117,38 +91,26 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     const { file, ...restUpdates } = updates;
 
     if (customer) {
-        const customerRef = doc(db, 'customers', customer.id);
         let avatarUrl = restUpdates.avatarUrl;
-        let photoURL = restUpdates.photoURL;
-
         if (file) {
-          const optimizedFile = await optimizeImage(file, 400, 400, 0.8);
-          const path = `customers/${customer.id}/${Date.now()}_${optimizedFile.name}`;
-          const uploadedUrl = await uploadFile(optimizedFile, path);
-          avatarUrl = uploadedUrl;
-          photoURL = uploadedUrl;
+            avatarUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(file);
+            });
         }
 
-        await updateDoc(customerRef, {
-          ...restUpdates,
-          avatarUrl: avatarUrl || customer.avatarUrl,
-          photoURL: photoURL || customer.photoURL
-        });
+        const updated = customers.map(c => c.id === customer.id ? { 
+            ...c, 
+            ...restUpdates, 
+            avatarUrl: avatarUrl || c.avatarUrl, 
+            photoURL: avatarUrl || c.photoURL 
+        } : c);
+        setCustomers(updated);
+        setLocalData('customers', updated);
     } else {
-        // If customer profile doesn't exist yet, create it
-        const newCustomerRef = doc(collection(db, 'customers'));
-        let avatarUrl = restUpdates.avatarUrl;
-        let photoURL = restUpdates.photoURL;
-
-        if (file) {
-          const path = `customers/${newCustomerRef.id}/${Date.now()}_${file.name}`;
-          const uploadedUrl = await uploadFile(file, path);
-          avatarUrl = uploadedUrl;
-          photoURL = uploadedUrl;
-        }
-
         const newCustomer: Customer = {
-            id: newCustomerRef.id,
+            id: Date.now().toString(),
             userId: userId,
             fullName: restUpdates.fullName || '',
             email: restUpdates.email || '',
@@ -156,18 +118,22 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
             cpf: restUpdates.cpf,
             dob: (restUpdates as any).birthDate || restUpdates.dob,
             address: restUpdates.address,
-            photoURL: photoURL,
-            avatarUrl: avatarUrl,
+            photoURL: restUpdates.photoURL,
+            avatarUrl: restUpdates.avatarUrl,
             status: 'Ativo',
             signupDate: new Date().toISOString(),
             ...restUpdates
         };
-        await setDoc(newCustomerRef, newCustomer);
+        const updated = [...customers, newCustomer];
+        setCustomers(updated);
+        setLocalData('customers', updated);
     }
   };
 
   const deleteCustomer = async (customerId: string): Promise<void> => {
-    await deleteDoc(doc(db, 'customers', customerId));
+    const updated = customers.filter(c => c.id !== customerId);
+    setCustomers(updated);
+    setLocalData('customers', updated);
   };
 
   return (

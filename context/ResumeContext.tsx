@@ -1,10 +1,8 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
-import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, query, where, onSnapshot } from 'firebase/firestore';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
 import type { ResumeData, Experience, Education, Language, Course, InformaticsData, ResumeConfig, Objective, TemplateOption, LineHeightOption, FontSizeOption, ResumeRequest } from '../types';
-import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 // --- INÍCIO: Dados de Configuração Padrão ---
 const initialObjectives: Objective[] = [
@@ -135,50 +133,19 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [resumeRequests, setResumeRequests] = useState<ResumeRequest[]>([]);
 
   useEffect(() => {
-    if (user) {
-      const fetchUserResume = async () => {
-        try {
-          const docRef = doc(db, 'user_resumes', user.id);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setResumeData(docSnap.data() as ResumeData);
-          } else {
-            // Try to load from local storage as a fallback for first-time login
-            const localData = localStorage.getItem('resumeData');
-            if (localData) {
-              setResumeData(JSON.parse(localData));
-            }
-          }
-        } catch (error) {
-          console.error("Error fetching user resume:", error);
-        }
-      };
-      fetchUserResume();
-    } else {
-      try {
-        const localData = localStorage.getItem('resumeData');
-        if (localData) setResumeData(JSON.parse(localData));
-      } catch (error) {
-        console.error("Could not parse resume data from localStorage", error);
-      }
-    }
-  }, [user]);
+    const data = getLocalData<ResumeData>('resumeData', initialResumeData);
+    setResumeData(data);
+    
+    const config = getLocalData<ResumeConfig>('resumeConfig', initialResumeConfig);
+    setResumeConfig(config);
+    
+    const requests = getLocalData<ResumeRequest[]>('resume_requests', []);
+    setResumeRequests(requests);
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('resumeData', JSON.stringify(resumeData));
-    if (user) {
-      const saveUserResume = async () => {
-        try {
-          await setDoc(doc(db, 'user_resumes', user.id), resumeData);
-        } catch (error) {
-          console.error("Error saving user resume:", error);
-        }
-      };
-      // Debounce saving to Firestore to avoid too many writes
-      const timeoutId = setTimeout(saveUserResume, 1000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [resumeData, user]);
+    setLocalData('resumeData', resumeData);
+  }, [resumeData]);
 
   const importProfileData = (customer: any) => {
     setResumeData(prev => ({
@@ -202,118 +169,41 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }));
   };
 
-  // Fetch resume config from Firestore
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const docRef = doc(db, 'resume_config', 'default');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists() && docSnap.data().config) {
-          setResumeConfig(docSnap.data().config);
-        }
-      } catch (error) {
-        // console.error("Error fetching resume config, using fallback:", (error as Error).message);
-        setResumeConfig(initialResumeConfig);
-      }
-    };
-    fetchConfig();
-  }, []);
-
-
-  const fetchResumeRequests = useCallback(async () => {
-    if (!user) {
-        setResumeRequests([]);
-        return;
-    }
-
-    try {
-        const requestsRef = collection(db, 'resume_requests');
-        const q = user.role === 'admin'
-            ? query(requestsRef)
-            : query(requestsRef, where('user_id', '==', user.id));
-
-        const querySnapshot = await getDocs(q);
-        const formattedData: ResumeRequest[] = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            userId: doc.data().user_id,
-            userName: doc.data().user_name,
-            userWhatsapp: doc.data().user_whatsapp,
-            status: doc.data().status,
-            requestedAt: doc.data().requested_at,
-            resumeData: doc.data().resume_data,
-        }));
-        setResumeRequests(formattedData);
-    } catch (error) {
-        try {
-            handleFirestoreError(error, OperationType.LIST, 'resume_requests');
-        } catch (e) {
-            console.error("Erro ao buscar solicitações de currículo:", (e as Error).message);
-            setResumeRequests([]);
-        }
-    }
-  }, [user]);
-
-  useEffect(() => {
-    fetchResumeRequests();
-  }, [fetchResumeRequests]);
-
-
   const addResumeRequest = async (details: { userName: string; userWhatsapp: string; }): Promise<ResumeRequest> => {
-    const requestPayload = {
-      user_name: details.userName,
-      user_whatsapp: details.userWhatsapp,
-      resume_data: { ...resumeData },
-      user_id: user?.id || null,
+    const newRequest: ResumeRequest = {
+      id: Date.now().toString(),
+      userId: user?.id || null,
+      userName: details.userName,
+      userWhatsapp: details.userWhatsapp,
       status: 'pending',
-      requested_at: new Date().toISOString(),
+      requestedAt: new Date().toISOString(),
+      resumeData: { ...resumeData },
     };
 
-    try {
-        const docRef = await addDoc(collection(db, 'resume_requests'), requestPayload);
-        
-        const newRequest: ResumeRequest = {
-            id: docRef.id,
-            userId: requestPayload.user_id,
-            userName: requestPayload.user_name,
-            userWhatsapp: requestPayload.user_whatsapp,
-            status: requestPayload.status as any,
-            requestedAt: requestPayload.requested_at,
-            resumeData: requestPayload.resume_data,
-        };
+    const updated = [newRequest, ...resumeRequests];
+    setResumeRequests(updated);
+    setLocalData('resume_requests', updated);
 
-        // Notify Client
-        if (user) {
-          await addNotification(
-            user.id,
-            'Currículo Enviado!',
-            'Sua solicitação de currículo foi enviada com sucesso e será analisada em breve.',
-            'success'
-          );
-        }
-
-        // Notify Admin
-        const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
-        adminsSnapshot.docs.forEach(adminDoc => {
-          addNotification(
-            adminDoc.id,
-            'Nova Solicitação de Currículo',
-            `Uma nova solicitação de currículo foi enviada por ${details.userName}.`,
-            'info'
-          );
-        });
-
-        return newRequest;
-    } catch (error) {
-        return handleFirestoreError(error, OperationType.CREATE, 'resume_requests');
+    if (user) {
+      await addNotification(
+        user.id,
+        'Currículo Enviado!',
+        'Sua solicitação de currículo foi enviada com sucesso e será analisada em breve.',
+        'success'
+      );
     }
+
+    return newRequest;
   };
 
   const updateRequestStatus = async (id: string, status: 'pending' | 'authorized') => {
-    try {
-        const request = resumeRequests.find(r => r.id === id);
-        await updateDoc(doc(db, 'resume_requests', id), { status });
+    const request = resumeRequests.find(r => r.id === id);
+    if (request) {
+        const updated = resumeRequests.map(r => r.id === id ? { ...r, status } : r);
+        setResumeRequests(updated);
+        setLocalData('resume_requests', updated);
         
-        if (request && request.userId) {
+        if (request.userId) {
           let title = 'Atualização do Currículo';
           let message = `O status da sua solicitação de currículo foi alterado para: ${status === 'authorized' ? 'Autorizado' : 'Pendente'}.`;
           let type: 'info' | 'success' = 'info';
@@ -325,18 +215,13 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
           await addNotification(request.userId, title, message, type);
         }
-    } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `resume_requests/${id}`);
     }
   };
 
   const deleteResumeRequest = async (id: string) => {
-    try {
-        await deleteDoc(doc(db, 'resume_requests', id));
-        // setResumeRequests(prev => prev.filter(req => req.id !== id)); // onSnapshot cuidará disso
-    } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `resume_requests/${id}`);
-    }
+    const updated = resumeRequests.filter(req => req.id !== id);
+    setResumeRequests(updated);
+    setLocalData('resume_requests', updated);
   };
   
   const getRequestsByUserId = (userId: string) => {
@@ -356,19 +241,13 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
   
   const resetResumeBuilder = () => {
-    localStorage.removeItem('resumeData');
     setResumeData(initialResumeData);
   }
 
   const updateResumeConfig = async (newConfig: Partial<ResumeConfig>) => {
     const fullNewConfig = { ...resumeConfig, ...newConfig };
-    setResumeConfig(fullNewConfig); // Update state locally for immediate feedback
-    try {
-        await setDoc(doc(db, 'resume_config', 'default'), { config: fullNewConfig }, { merge: true });
-    } catch (error) {
-        console.error("Failed to save resume config to DB:", (error as Error).message);
-        // Optionally revert state or show an error to the user
-    }
+    setResumeConfig(fullNewConfig);
+    setLocalData('resumeConfig', fullNewConfig);
   };
 
   const capitalizeWords = (str: string) => {
@@ -451,56 +330,24 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const saveSuggestion = async (type: 'role' | 'school' | 'course' | 'company', text: string, state?: string, city?: string) => {
     if (!text || text.length < 2) return;
-    
-    // Capitalize first letter of each word
+    const suggestions = getLocalData<any[]>('suggestions', []);
     const formattedText = text.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
-
-    try {
-      const suggestionsRef = collection(db, 'suggestions');
-      let q = query(suggestionsRef, where('type', '==', type), where('text', '==', formattedText));
-      
-      if (state) q = query(q, where('state', '==', state));
-      if (city) q = query(q, where('city', '==', city));
-
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        await addDoc(suggestionsRef, {
-          type,
-          text: formattedText,
-          state: state || null,
-          city: city || null,
-          count: 1,
-          createdAt: new Date().toISOString()
-        });
-      } else {
-        const docRef = doc(db, 'suggestions', querySnapshot.docs[0].id);
-        await updateDoc(docRef, {
-          count: (querySnapshot.docs[0].data().count || 0) + 1
-        });
-      }
-    } catch (error) {
-      console.error("Error saving suggestion:", error);
+    
+    const existing = suggestions.find(s => s.type === type && s.text === formattedText && s.state === (state || null) && s.city === (city || null));
+    
+    if (existing) {
+        const updated = suggestions.map(s => s === existing ? { ...s, count: (s.count || 0) + 1 } : s);
+        setLocalData('suggestions', updated);
+    } else {
+        const updated = [...suggestions, { type, text: formattedText, state: state || null, city: city || null, count: 1, createdAt: new Date().toISOString() }];
+        setLocalData('suggestions', updated);
     }
   };
 
   const getSuggestions = async (type: 'role' | 'school' | 'course' | 'company', state?: string, city?: string): Promise<string[]> => {
-    try {
-      const suggestionsRef = collection(db, 'suggestions');
-      let q = query(suggestionsRef, where('type', '==', type));
-      
-      if (state) q = query(q, where('state', '==', state));
-      if (city) q = query(q, where('city', '==', city));
-
-      const querySnapshot = await getDocs(q);
-      const results = querySnapshot.docs.map(doc => doc.data().text as string);
-      
-      // Remove duplicates and return top 10 (or similar)
-      return Array.from(new Set(results)).slice(0, 20);
-    } catch (error) {
-      console.error("Error getting suggestions:", error);
-      return [];
-    }
+    const suggestions = getLocalData<any[]>('suggestions', []);
+    const filtered = suggestions.filter(s => s.type === type && (!state || s.state === state) && (!city || s.city === city));
+    return Array.from(new Set(filtered.map(s => s.text))).slice(0, 20);
   };
 
   const updateInformatics = (field: keyof InformaticsData | `skills.${keyof InformaticsData['skills']}`, value: any) => {

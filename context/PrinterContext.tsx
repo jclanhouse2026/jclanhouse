@@ -1,8 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
 import type { Printer } from '../types';
 import { useAuth } from './AuthContext';
-import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, writeBatch } from 'firebase/firestore';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
 
 interface PrinterContextType {
   printers: Printer[];
@@ -20,87 +19,54 @@ export const PrinterProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [printers, setPrinters] = useState<Printer[]>([]);
 
   useEffect(() => {
-    const fetchPrinters = async () => {
-      if (!user) {
-        setPrinters([]);
-        return;
-      }
-      try {
-        const q = query(collection(db, 'printers'), where('user_id', '==', user.id));
-        const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            name: doc.data().name,
-            connectionType: doc.data().connection_type,
-            address: doc.data().address,
-            isDefault: doc.data().is_default
-        } as Printer));
-        setPrinters(data);
-      } catch (error) {
-        // console.error("Erro ao buscar impressoras:", (error as Error).message);
-      }
+    const fetchPrinters = () => {
+      const data = getLocalData<Printer[]>('printers', []);
+      setPrinters(data);
     };
     fetchPrinters();
-  }, [user]);
+  }, []);
 
   const addPrinter = async (printerData: Omit<Printer, 'id' | 'isDefault'>) => {
     if (!user) return;
     const isFirstPrinter = printers.length === 0;
     
-    const newPrinter = {
+    const newPrinter: Printer = {
+        id: Date.now().toString(),
         name: printerData.name,
-        connection_type: printerData.connectionType,
+        connectionType: printerData.connectionType,
         address: printerData.address,
-        user_id: user.id,
-        is_default: isFirstPrinter
+        isDefault: isFirstPrinter
     };
 
-    const docRef = await addDoc(collection(db, 'printers'), newPrinter);
-    
-    setPrinters(prev => [...prev, {
-        id: docRef.id,
-        name: newPrinter.name,
-        connectionType: newPrinter.connection_type as any,
-        address: newPrinter.address,
-        isDefault: newPrinter.is_default
-    }]);
+    const updated = [...printers, newPrinter];
+    setPrinters(updated);
+    setLocalData('printers', updated);
   };
 
   const updatePrinter = async (updatedPrinterData: Omit<Printer, 'isDefault'> & { id: string }) => {
-    const { id, ...rest } = updatedPrinterData;
-    await updateDoc(doc(db, 'printers', id), {
-        name: rest.name,
-        connection_type: rest.connectionType,
-        address: rest.address
-    });
-    setPrinters(prev => prev.map(p => (p.id === id ? { ...p, ...rest } : p)));
+    const updated = printers.map(p => p.id === updatedPrinterData.id ? { ...p, ...updatedPrinterData } : p);
+    setPrinters(updated);
+    setLocalData('printers', updated);
   };
   
   const deletePrinter = async (printerId: string) => {
     const printerToDelete = printers.find(p => p.id === printerId);
-    await deleteDoc(doc(db, 'printers', printerId));
-
     const remainingPrinters = printers.filter(p => p.id !== printerId);
+    
     if (printerToDelete?.isDefault && remainingPrinters.length > 0) {
-      await setDefaultPrinter(remainingPrinters[0].id);
+      const updated = remainingPrinters.map((p, i) => i === 0 ? { ...p, isDefault: true } : p);
+      setPrinters(updated);
+      setLocalData('printers', updated);
     } else {
       setPrinters(remainingPrinters);
+      setLocalData('printers', remainingPrinters);
     }
   };
 
   const setDefaultPrinter = async (printerId: string) => {
-    if (!user) return;
-    
-    const batch = writeBatch(db);
-    
-    printers.forEach(p => {
-        const pRef = doc(db, 'printers', p.id);
-        batch.update(pRef, { is_default: p.id === printerId });
-    });
-    
-    await batch.commit();
-
-    setPrinters(prev => prev.map(p => ({ ...p, isDefault: p.id === printerId })));
+    const updated = printers.map(p => ({ ...p, isDefault: p.id === printerId }));
+    setPrinters(updated);
+    setLocalData('printers', updated);
   };
 
   const getDefaultPrinter = useMemo(() => () => {

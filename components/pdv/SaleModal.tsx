@@ -17,7 +17,7 @@ import PixIcon from '../icons/PixIcon';
 import PrinterIcon from '../icons/PrinterIcon';
 import CheckBadgeIcon from '../icons/CheckBadgeIcon';
 
-type SaleCartItem = { id: number; name: string; quantity: number; unitPrice: number };
+type SaleCartItem = { id: string | number; name: string; quantity: number; unitPrice: number };
 type SaleStep = 'cart' | 'payment' | 'receipt';
 type PaymentMethod = 'cash' | 'card' | 'pix' | null;
 
@@ -144,7 +144,7 @@ const SaleModal: React.FC<{
         setSearchTerm('');
     };
     
-    const updateQuantity = (productId: number, delta: number) => {
+    const updateQuantity = (productId: string | number, delta: number) => {
         setCart(prev => {
             const updatedCart = prev.map(item => 
                 item.id === productId ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item

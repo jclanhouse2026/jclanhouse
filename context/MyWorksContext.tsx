@@ -1,7 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
-import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
 
 export interface MyWork {
     id: string;
@@ -26,28 +25,12 @@ const MyWorksContext = createContext<MyWorksContextType | undefined>(undefined);
 export const MyWorksProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [works, setWorks] = useState<MyWork[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchWorks = useCallback(async () => {
-    setLoading(true);
     setError(null);
-    try {
-        const q = query(collection(db, 'my_works'), orderBy('created_at', 'desc'));
-        const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        } as MyWork));
-        
-        setWorks(data);
-    } catch (err: any) {
-        const userMessage = "Erro ao carregar os trabalhos.";
-        // console.error("Erro detalhado ao buscar trabalhos:", err.message);
-        setError(userMessage);
-    } finally {
-        setLoading(false);
-    }
+    const data = getLocalData<MyWork[]>('my_works', []);
+    setWorks(data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
   }, []);
 
   useEffect(() => {
@@ -57,28 +40,27 @@ export const MyWorksProvider: React.FC<{ children: ReactNode }> = ({ children })
   const addWork = async (workData: Omit<MyWork, 'id' | 'created_at'>) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar trabalho.");
 
-    const newWork = {
+    const newWork: MyWork = {
         ...workData,
-        user_id: user.id,
+        id: Date.now().toString(),
         created_at: new Date().toISOString()
     };
 
-    const docRef = await addDoc(collection(db, 'my_works'), newWork);
-    
-    setWorks(prev => [{ id: docRef.id, ...newWork } as MyWork, ...prev]);
+    const updated = [newWork, ...works];
+    setWorks(updated);
+    setLocalData('my_works', updated);
   };
 
   const updateWork = async (updatedWork: Omit<MyWork, 'created_at'>) => {
-    const { id, ...workData } = updatedWork;
-    
-    await updateDoc(doc(db, 'my_works', id), workData);
-
-    setWorks(prev => prev.map(w => (w.id === id ? { ...w, ...workData } : w)));
+    const updated = works.map(w => (w.id === updatedWork.id ? { ...w, ...updatedWork } : w));
+    setWorks(updated);
+    setLocalData('my_works', updated);
   };
 
   const deleteWork = async (workId: string) => {
-    await deleteDoc(doc(db, 'my_works', workId));
-    setWorks(prev => prev.filter(w => w.id !== workId));
+    const updated = works.filter(w => w.id !== workId);
+    setWorks(updated);
+    setLocalData('my_works', updated);
   };
 
 

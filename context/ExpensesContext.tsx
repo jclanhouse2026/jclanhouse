@@ -1,12 +1,10 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
 
 export type Expense = {
     id: string;
-    userId: string; // ID of the user who registered the expense
+    userId: string;
     dateTime: Date;
     expenseType: string;
     description: string;
@@ -18,8 +16,8 @@ export type Expense = {
 };
 
 interface ExpensesContextType {
-  expenses: Expense[]; // All expenses for admin view
-  expensesForCurrentUser: Expense[]; // Filtered for logged-in user
+  expenses: Expense[];
+  expensesForCurrentUser: Expense[];
   addExpense: (expense: Omit<Expense, 'id' | 'userId' | 'dateTime'>) => Promise<void>;
 }
 
@@ -29,44 +27,14 @@ export const ExpensesProvider: React.FC<{ children: ReactNode }> = ({ children }
   const { user } = useAuth();
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
-  const fetchExpenses = useCallback(async () => {
-    if (!user) {
-        setExpenses([]);
-        return;
-    }
-    
-    try {
-        const expensesRef = collection(db, 'expenses');
-        const q = user.role === 'admin'
-            ? query(expensesRef, orderBy('date_time', 'desc'))
-            : query(expensesRef, where('user_id', '==', user.id), orderBy('date_time', 'desc'));
-
-        const querySnapshot = await getDocs(q);
-        const formattedData = querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                userId: data.user_id,
-                dateTime: new Date(data.date_time),
-                expenseType: data.expense_type,
-                description: data.description,
-                observation: data.observation,
-                supplier: data.supplier,
-                category: data.category,
-                total: data.total,
-                paymentMethod: data.payment_method,
-            };
-        });
-        setExpenses(formattedData);
-    } catch (error) {
-        try {
-            handleFirestoreError(error, OperationType.LIST, 'expenses');
-        } catch (e) {
-            console.error("Erro ao buscar despesas:", (e as Error).message);
-            setExpenses([]);
-        }
-    }
-  }, [user]);
+  const fetchExpenses = useCallback(() => {
+    const data = getLocalData<any[]>('expenses', []);
+    const formattedData = data.map(item => ({
+        ...item,
+        dateTime: new Date(item.dateTime)
+    }));
+    setExpenses(formattedData);
+  }, []);
 
   useEffect(() => {
     fetchExpenses();
@@ -81,37 +49,16 @@ export const ExpensesProvider: React.FC<{ children: ReactNode }> = ({ children }
   const addExpense = async (expenseData: Omit<Expense, 'id' | 'userId' | 'dateTime'>) => {
     if (!user) throw new Error("Usuário não está logado para registrar despesa.");
     
-    const newExpenseData = {
-      user_id: user.id,
-      date_time: new Date().toISOString(),
-      expense_type: expenseData.expenseType,
-      description: expenseData.description,
-      observation: expenseData.observation,
-      supplier: expenseData.supplier,
-      category: expenseData.category,
-      total: expenseData.total,
-      payment_method: expenseData.paymentMethod,
+    const newExpense: Expense = {
+      ...expenseData,
+      id: Date.now().toString(),
+      userId: user.id,
+      dateTime: new Date(),
     };
 
-    try {
-        const docRef = await addDoc(collection(db, 'expenses'), newExpenseData);
-
-        const newExpense: Expense = {
-            id: docRef.id,
-            userId: newExpenseData.user_id,
-            dateTime: new Date(newExpenseData.date_time),
-            expenseType: newExpenseData.expense_type,
-            description: newExpenseData.description,
-            observation: newExpenseData.observation,
-            supplier: newExpenseData.supplier,
-            category: newExpenseData.category,
-            total: newExpenseData.total,
-            paymentMethod: newExpenseData.payment_method,
-        };
-        // setExpenses(prevExpenses => [newExpense, ...prevExpenses]); // onSnapshot cuidará disso
-    } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, 'expenses');
-    }
+    const updated = [newExpense, ...expenses];
+    setExpenses(updated);
+    setLocalData('expenses', updated);
   };
 
   return (

@@ -12,7 +12,7 @@ import CheckCircleIcon from '../icons/CheckCircleIcon';
 const PrinterModal: React.FC<{
     printer: Partial<Printer> | null;
     onClose: () => void;
-    onSave: (printerData: Omit<Printer, 'id' | 'isDefault'> & { id?: number }) => void;
+    onSave: (printerData: Omit<Printer, 'id' | 'isDefault'> & { id?: string }) => void;
 }> = ({ printer, onClose, onSave }) => {
     const [name, setName] = useState(printer?.name || '');
     const [connectionType, setConnectionType] = useState<Printer['connectionType']>(printer?.connectionType || 'usb');
@@ -72,10 +72,10 @@ const PrinterSettings: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleSave = (printerData: Omit<Printer, 'id' | 'isDefault'> & { id?: number }) => {
+    const handleSave = (printerData: Omit<Printer, 'id' | 'isDefault'> & { id?: string }) => {
         if (printerData.id) {
             // FIX: Cast printerData to the correct type as the `if` condition ensures `id` is present.
-            updatePrinter(printerData as Omit<Printer, 'isDefault'> & { id: number });
+            updatePrinter(printerData as Omit<Printer, 'isDefault'> & { id: string });
         } else {
             addPrinter(printerData);
         }

@@ -1,7 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import type { Category, Subcategory } from '../types';
-import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import type { Category } from '../types';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
 import { useAuth } from './AuthContext';
 
 interface CategoryContextType {
@@ -21,24 +20,11 @@ export const CategoryProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchCategories = async () => {
-    try {
-        const catSnapshot = await getDocs(collection(db, 'categories'));
-        const categoriesData = catSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-
-        const subcatSnapshot = await getDocs(collection(db, 'subcategories'));
-        const subcategoriesData = subcatSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-        
-        const combined = categoriesData.map(cat => ({
-            ...cat,
-            subcategories: subcategoriesData.filter(sub => sub.category_id === cat.id)
-        }));
-        setCategories(combined);
-    } catch (error) {
-        // console.error("Erro ao buscar categorias:", (error as Error).message);
-    } finally {
-        setLoading(false);
-    }
+  const fetchCategories = () => {
+    setLoading(true);
+    const data = getLocalData<Category[]>('categories', []);
+    setCategories(data);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -48,45 +34,52 @@ export const CategoryProvider: React.FC<{ children: ReactNode }> = ({ children }
   const addCategory = async (name: string) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar categoria.");
 
-    const docRef = await addDoc(collection(db, 'categories'), { name, user_id: user.id });
-    setCategories(prev => [...prev, { id: docRef.id, name, subcategories: [] }]);
+    const newCategory: Category = { id: Date.now().toString(), name, subcategories: [] };
+    const updated = [...categories, newCategory];
+    setCategories(updated);
+    setLocalData('categories', updated);
   };
 
   const updateCategory = async (id: string, name: string) => {
-    await updateDoc(doc(db, 'categories', id), { name });
-    setCategories(prev => prev.map(cat => cat.id === id ? { ...cat, name } : cat));
+    const updated = categories.map(cat => cat.id === id ? { ...cat, name } : cat);
+    setCategories(updated);
+    setLocalData('categories', updated);
   };
 
   const deleteCategory = async (id: string) => {
-    await deleteDoc(doc(db, 'categories', id));
-    setCategories(prev => prev.filter(cat => cat.id !== id));
+    const updated = categories.filter(cat => cat.id !== id);
+    setCategories(updated);
+    setLocalData('categories', updated);
   };
   
   const addSubcategory = async (parentId: string, name: string) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar subcategoria.");
 
-    const docRef = await addDoc(collection(db, 'subcategories'), { category_id: parentId, name, user_id: user.id });
-    setCategories(prev => prev.map(cat => 
-        cat.id === parentId ? { ...cat, subcategories: [...cat.subcategories, { id: docRef.id, name }] } : cat
-    ));
+    const updated = categories.map(cat => 
+        cat.id === parentId ? { ...cat, subcategories: [...cat.subcategories, { id: Date.now().toString() + Math.random(), name }] } : cat
+    );
+    setCategories(updated);
+    setLocalData('categories', updated);
   };
 
   const updateSubcategory = async (parentId: string, subId: string, name: string) => {
-    await updateDoc(doc(db, 'subcategories', subId), { name });
-    setCategories(prev => prev.map(cat => 
+    const updated = categories.map(cat => 
         cat.id === parentId 
             ? { ...cat, subcategories: cat.subcategories.map(sub => sub.id === subId ? { ...sub, name } : sub) }
             : cat
-    ));
+    );
+    setCategories(updated);
+    setLocalData('categories', updated);
   };
 
   const deleteSubcategory = async (parentId: string, subId: string) => {
-    await deleteDoc(doc(db, 'subcategories', subId));
-    setCategories(prev => prev.map(cat => 
+    const updated = categories.map(cat => 
         cat.id === parentId 
             ? { ...cat, subcategories: cat.subcategories.filter(sub => sub.id !== subId) }
             : cat
-    ));
+    );
+    setCategories(updated);
+    setLocalData('categories', updated);
   };
 
   return (

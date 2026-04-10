@@ -1,10 +1,8 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import type { Theme, ThemeOrder } from '../types';
-import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, onSnapshot, where } from 'firebase/firestore';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
-import { uploadFile } from '../lib/storage';
 
 interface ThemeContextType {
   themes: Theme[];
@@ -27,49 +25,18 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [themeOrders, setThemeOrders] = useState<ThemeOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchThemes = useCallback(async () => {
+  const fetchThemes = useCallback(() => {
     setLoading(true);
-    try {
-      const snapshot = await getDocs(collection(db, 'themes'));
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Theme));
-      setThemes(data);
-    } catch (error) {
-      // console.error("Erro ao buscar temas:", error);
-    } finally {
-      setLoading(false);
-    }
+    const data = getLocalData<Theme[]>('themes', []);
+    setThemes(data);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchThemes();
-    
-    const fetchThemeOrders = async () => {
-      if (!user) {
-        setThemeOrders([]);
-        return;
-      }
-      
-      try {
-        const ordersQuery = user.role === 'admin' 
-          ? query(collection(db, 'theme_orders'), orderBy('createdAt', 'desc'))
-          : query(collection(db, 'theme_orders'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
-          
-        const snapshot = await getDocs(ordersQuery);
-        const orders = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as ThemeOrder));
-        setThemeOrders(orders);
-      } catch (error) {
-        console.error("Erro ao buscar pedidos de temas:", error);
-      }
-    };
-
-    fetchThemeOrders();
-  }, [user, fetchThemes]);
+    const orders = getLocalData<ThemeOrder[]>('theme_orders', []);
+    setThemeOrders(orders);
+  }, [fetchThemes]);
 
   const addTheme = async (themeData: Omit<Theme, 'id'> & { file?: File }) => {
     if (!user) throw new Error("Usuário não autenticado para adicionar tema.");
@@ -78,26 +45,23 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let publicUrl = imageUrl;
 
     if (file) {
-      const path = `themes/${Date.now()}_${file.name}`;
-      publicUrl = await uploadFile(file, path);
+        publicUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+        });
     }
 
-    const newThemeData: any = { 
+    const newTheme: Theme = { 
       ...restThemeData, 
-      imageUrl: publicUrl, 
-      user_id: user.id,
-      created_at: new Date().toISOString()
+      id: Date.now().toString(),
+      imageUrl: publicUrl || '',
     };
     
-    Object.keys(newThemeData).forEach(key => {
-      if (newThemeData[key] === undefined) {
-        delete newThemeData[key];
-      }
-    });
+    const updated = [...themes, newTheme];
+    setThemes(updated);
+    setLocalData('themes', updated);
 
-    const docRef = await addDoc(collection(db, 'themes'), newThemeData);
-
-    // Notify all users about new theme
     await sendNotificationToAll(
       'Novo Tema Adicionado!',
       `Um novo tema "${themeData.name}" foi adicionado à categoria ${themeData.category}. Confira agora!`,
@@ -110,39 +74,37 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let publicUrl = imageUrl;
 
     if (file) {
-      const path = `themes/${id}/${Date.now()}_${file.name}`;
-      publicUrl = await uploadFile(file, path);
+        publicUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+        });
     }
 
-    const updateData: any = { 
-      ...restThemeData, 
-      imageUrl: publicUrl,
-      updated_at: new Date().toISOString()
-    };
-    
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key] === undefined) {
-        delete updateData[key];
-      }
-    });
-
-    await updateDoc(doc(db, 'themes', id), updateData);
+    const updated = themes.map(t => t.id === id ? { ...t, ...restThemeData, imageUrl: publicUrl } : t);
+    setThemes(updated);
+    setLocalData('themes', updated);
   };
 
   const deleteTheme = async (themeId: string) => {
-    await deleteDoc(doc(db, 'themes', themeId));
+    const updated = themes.filter(t => t.id !== themeId);
+    setThemes(updated);
+    setLocalData('themes', updated);
   };
 
   const addThemeOrder = async (orderData: Omit<ThemeOrder, 'id' | 'createdAt' | 'status'>) => {
-    const newOrder = {
+    const newOrder: ThemeOrder = {
       ...orderData,
-      userId: user ? user.id : null, // Save userId if logged in
+      id: Date.now().toString(),
+      userId: user ? user.id : null,
       status: 'pending',
       createdAt: new Date().toISOString()
     };
-    const docRef = await addDoc(collection(db, 'theme_orders'), newOrder);
+    
+    const updated = [newOrder, ...themeOrders];
+    setThemeOrders(updated);
+    setLocalData('theme_orders', updated);
 
-    // Notify Client
     if (user) {
       await addNotification(
         user.id,
@@ -152,27 +114,17 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       );
     }
 
-    // Notify Admin
-    const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
-    adminsSnapshot.docs.forEach(adminDoc => {
-      addNotification(
-        adminDoc.id,
-        'Novo Pedido de Personalização',
-        `${orderData.customerName} solicitou um(a) ${orderData.productType} (${orderData.themeName}).`,
-        'info'
-      );
-    });
-
-    return docRef.id;
+    return newOrder.id;
   };
 
   const updateThemeOrderStatus = async (orderId: string, status: 'pending' | 'completed') => {
-    try {
-      const order = themeOrders.find(o => o.id === orderId);
-      await updateDoc(doc(db, 'theme_orders', orderId), { status });
-      
-      if (order && order.userId) {
-        if (status === 'completed') {
+    const order = themeOrders.find(o => o.id === orderId);
+    if (order) {
+        const updated = themeOrders.map(o => o.id === orderId ? { ...o, status } : o);
+        setThemeOrders(updated);
+        setLocalData('theme_orders', updated);
+        
+        if (order.userId && status === 'completed') {
           await addNotification(
             order.userId,
             'Personalização Concluída!',
@@ -180,14 +132,13 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             'success'
           );
         }
-      }
-    } catch (error) {
-      console.error("Erro ao atualizar status do pedido de tema:", error);
     }
   };
 
   const deleteThemeOrder = async (orderId: string) => {
-    await deleteDoc(doc(db, 'theme_orders', orderId));
+    const updated = themeOrders.filter(o => o.id !== orderId);
+    setThemeOrders(updated);
+    setLocalData('theme_orders', updated);
   };
 
   return (

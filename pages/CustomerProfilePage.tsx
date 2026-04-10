@@ -155,9 +155,12 @@ const CustomerProfilePage: React.FC = () => {
                 if (selectedFile) {
                     console.log("Iniciando otimização da imagem...");
                     const optimized = await optimizeImage(selectedFile);
-                    console.log("Iniciando processamento local...");
+                    console.log("Iniciando upload para o Storage...");
                     finalImageUrl = await uploadFile(optimized, `avatars/${user.id}_${Date.now()}.webp`);
-                    console.log("Processamento concluído.");
+                    console.log("Upload concluído:", finalImageUrl);
+                } else if (finalImageUrl && finalImageUrl.startsWith('blob:')) {
+                    console.error("URL de imagem é um blob mas nenhum arquivo foi selecionado.");
+                    throw new Error("Erro no processamento da imagem. Por favor, selecione a foto novamente.");
                 }
 
                 console.log("Atualizando perfil...");

@@ -1,9 +1,6 @@
 
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { db } from '../lib/firebase';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { useAuth } from './AuthContext';
-import { setCustomApiKey } from '../services/geminiService';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
 
 interface AppSettings {
   githubToken?: string;
@@ -40,39 +37,23 @@ const defaultSettings: AppSettings = {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const docRef = doc(db, 'app_settings', 'global');
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-          const data = docSnap.data() as AppSettings;
-          setSettings({ ...defaultSettings, ...data });
-          if (data.aiKey) {
-            setCustomApiKey(data.aiKey);
-          }
-        } else {
-          // Initialize with defaults if doesn't exist
-          await setDoc(docRef, defaultSettings);
-        }
-      } catch (error) {
-        // console.error("Error fetching settings:", error);
-      } finally {
-        setLoading(false);
-      }
+    const fetchSettings = () => {
+      const data = getLocalData<AppSettings>('app_settings', defaultSettings);
+      setSettings(data);
+      setLoading(false);
     };
 
     fetchSettings();
   }, []);
 
   const updateSettings = async (newSettings: Partial<AppSettings>) => {
-    const docRef = doc(db, 'app_settings', 'global');
-    await setDoc(docRef, { ...settings, ...newSettings }, { merge: true });
+    const updated = { ...settings, ...newSettings };
+    setSettings(updated);
+    setLocalData('app_settings', updated);
   };
 
   return (

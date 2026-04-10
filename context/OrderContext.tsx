@@ -1,7 +1,5 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
 import type { Order, OrderItem, Address } from '../types';
@@ -24,87 +22,53 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      if (!user) {
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
-
+    const fetchOrders = () => {
       setLoading(true);
-      try {
-        const ordersRef = collection(db, 'orders');
-        
-        // Admin sees all orders, regular user only sees their own
-        const q = user.role === 'admin'
-          ? query(ordersRef, orderBy('createdAt', 'desc'))
-          : query(ordersRef, where('userId', '==', user.id), orderBy('createdAt', 'desc'));
-
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Order[];
-        setOrders(data);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.LIST, 'orders');
-      } finally {
-        setLoading(false);
-      }
+      const data = getLocalData<Order[]>('orders', []);
+      setOrders(data);
+      setLoading(false);
     };
 
     fetchOrders();
-  }, [user]);
+  }, []);
 
   const createOrder = async (items: OrderItem[], address: Address, totalAmount: number, customerName: string, customerPhone: string): Promise<Order> => {
     if (!user) throw new Error("Você precisa estar logado para realizar um pedido.");
 
-    try {
-      const newOrderData: Omit<Order, 'id'> = {
-        userId: user.id,
-        customerName,
-        customerPhone,
-        address,
-        items,
-        totalAmount,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      };
+    const newOrder: Order = {
+      id: Date.now().toString(),
+      userId: user.id,
+      customerName,
+      customerPhone,
+      address,
+      items,
+      totalAmount,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
 
-      const docRef = await addDoc(collection(db, 'orders'), newOrderData);
-      const newOrder = { id: docRef.id, ...newOrderData } as Order;
-      
-      // Notify Client
-      await addNotification(
-        user.id,
-        'Pedido Realizado!',
-        `Seu pedido #${docRef.id.slice(-6)} foi recebido com sucesso e está aguardando processamento.`,
-        'success'
-      );
+    const updated = [newOrder, ...orders];
+    setOrders(updated);
+    setLocalData('orders', updated);
+    
+    // Notify Client
+    await addNotification(
+      user.id,
+      'Pedido Realizado!',
+      `Seu pedido #${newOrder.id.slice(-6)} foi recebido com sucesso e está aguardando processamento.`,
+      'success'
+    );
 
-      // Notify Admin
-      const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
-      adminsSnapshot.docs.forEach(adminDoc => {
-        addNotification(
-          adminDoc.id,
-          'Novo Pedido Recebido',
-          `Um novo pedido (#${docRef.id.slice(-6)}) foi realizado por ${customerName}.`,
-          'info'
-        );
-      });
-      
-      return newOrder;
-    } catch (error) {
-      return handleFirestoreError(error, OperationType.CREATE, 'orders');
-    }
+    return newOrder;
   };
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
-    try {
-      const order = orders.find(o => o.id === orderId);
-      await updateDoc(doc(db, 'orders', orderId), { status });
-      
-      if (order) {
+    const order = orders.find(o => o.id === orderId);
+    if (order) {
+        const updated = orders.map(o => o.id === orderId ? { ...o, status } : o);
+        setOrders(updated);
+        setLocalData('orders', updated);
+        
         let title = 'Atualização do Pedido';
         let message = `O status do seu pedido #${orderId.slice(-6)} foi alterado para: ${status}.`;
         let type: 'info' | 'success' = 'info';
@@ -131,18 +95,13 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
 
         await addNotification(order.userId, title, message, type);
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
     }
   };
 
   const deleteOrder = async (orderId: string) => {
-    try {
-      await deleteDoc(doc(db, 'orders', orderId));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `orders/${orderId}`);
-    }
+    const updated = orders.filter(o => o.id !== orderId);
+    setOrders(updated);
+    setLocalData('orders', updated);
   };
 
   const getUserOrders = (userId: string) => {

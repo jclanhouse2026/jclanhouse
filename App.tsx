@@ -171,7 +171,6 @@ const App: React.FC = () => {
                                             </Route>
 
                                           </Routes>
-                                          <AIAssistant />
                                         </HashRouter>
                                       </PrinterProvider>
                                     </CustomerProvider>

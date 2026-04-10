@@ -53,7 +53,7 @@ const ResumeSettings: React.FC = () => {
 
     const handleAddItem = (section: 'objectives' | 'colors') => {
         if (section === 'objectives') {
-            const newObjectives = [...localConfig.objectives, { id: Date.now(), category: 'Objetivo Geral', text: 'Novo objetivo...' }];
+            const newObjectives = [...localConfig.objectives, { id: String(Date.now()), category: 'Objetivo Geral', text: 'Novo objetivo...' }];
             setLocalConfig(prev => ({ ...prev, objectives: newObjectives }));
         }
         if (section === 'colors') {

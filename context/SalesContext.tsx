@@ -1,8 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, doc, deleteDoc, query, orderBy, onSnapshot, where } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
+import { getLocalData, setLocalData } from '../lib/storage_helper';
 
 export type SaleStatus = 'orcamento' | 'em_aberto' | 'finalizado' | 'cancelado';
 
@@ -41,44 +39,14 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const { user } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
 
-  const fetchSales = useCallback(async () => {
-    if (!user) {
-        setSales([]);
-        return;
-    }
-
-    try {
-        const salesRef = collection(db, 'sales');
-        const q = user.role === 'admin'
-            ? query(salesRef, orderBy('date_time', 'desc'))
-            : query(salesRef, where('user_id', '==', user.id), orderBy('date_time', 'desc'));
-        
-        const querySnapshot = await getDocs(q);
-        const formattedData = querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                userId: data.user_id,
-                customerName: data.customer_name,
-                phone: data.phone,
-                total: data.total,
-                dateTime: new Date(data.date_time),
-                items: data.items,
-                amountPaid: data.amount_paid,
-                paymentMethod: data.payment_method,
-                status: data.status || 'finalizado',
-            };
-        });
-        setSales(formattedData);
-    } catch (error) {
-        try {
-            handleFirestoreError(error, OperationType.LIST, 'sales');
-        } catch (e) {
-            console.error("Erro ao buscar histórico de vendas:", (e as Error).message);
-            setSales([]);
-        }
-    }
-  }, [user]);
+  const fetchSales = useCallback(() => {
+    const data = getLocalData<any[]>('sales', []);
+    const formattedData = data.map(item => ({
+        ...item,
+        dateTime: new Date(item.dateTime)
+    }));
+    setSales(formattedData);
+  }, []);
 
   useEffect(() => {
     fetchSales();
@@ -93,61 +61,29 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const addSale = async (saleData: Omit<Sale, 'id' | 'userId' | 'dateTime'>): Promise<Sale> => {
     if (!user) throw new Error("Usuário não está logado para registrar venda.");
     
-    const newSaleData = {
-      user_id: user.id,
-      customer_name: saleData.customerName,
-      phone: saleData.phone,
-      total: saleData.total,
-      date_time: new Date().toISOString(),
-      items: saleData.items,
-      amount_paid: saleData.amountPaid,
-      payment_method: saleData.paymentMethod,
-      status: saleData.status
+    const newSale: Sale = {
+      ...saleData,
+      id: Date.now().toString(),
+      userId: user.id,
+      dateTime: new Date(),
     };
     
-    try {
-        const docRef = await addDoc(collection(db, 'sales'), newSaleData);
-
-        return {
-          id: docRef.id,
-          userId: newSaleData.user_id,
-          customerName: newSaleData.customer_name,
-          phone: newSaleData.phone,
-          total: newSaleData.total,
-          dateTime: new Date(newSaleData.date_time),
-          items: newSaleData.items,
-          amountPaid: newSaleData.amount_paid,
-          paymentMethod: newSaleData.payment_method,
-          status: newSaleData.status as SaleStatus
-        };
-    } catch (error) {
-        return handleFirestoreError(error, OperationType.CREATE, 'sales');
-    }
+    const updated = [newSale, ...sales];
+    setSales(updated);
+    setLocalData('sales', updated);
+    return newSale;
   };
 
   const updateSale = async (id: string, saleData: Partial<Sale>) => {
-      const updateData: any = {};
-      if (saleData.customerName !== undefined) updateData.customer_name = saleData.customerName;
-      if (saleData.phone !== undefined) updateData.phone = saleData.phone;
-      if (saleData.total !== undefined) updateData.total = saleData.total;
-      if (saleData.items !== undefined) updateData.items = saleData.items;
-      if (saleData.amountPaid !== undefined) updateData.amount_paid = saleData.amountPaid;
-      if (saleData.paymentMethod !== undefined) updateData.payment_method = saleData.paymentMethod;
-      if (saleData.status !== undefined) updateData.status = saleData.status;
-
-      try {
-          await updateDoc(doc(db, 'sales', id), updateData);
-      } catch (error) {
-          handleFirestoreError(error, OperationType.UPDATE, `sales/${id}`);
-      }
+      const updated = sales.map(s => s.id === id ? { ...s, ...saleData } : s);
+      setSales(updated);
+      setLocalData('sales', updated);
   };
 
   const deleteSale = async (id: string) => {
-      try {
-          await deleteDoc(doc(db, 'sales', id));
-      } catch (error) {
-          handleFirestoreError(error, OperationType.DELETE, `sales/${id}`);
-      }
+      const updated = sales.filter(s => s.id !== id);
+      setSales(updated);
+      setLocalData('sales', updated);
   };
 
   return (

@@ -105,6 +105,11 @@ const MultiThemeModal: React.FC<MultiThemeModalProps> = ({ theme, onSave, onClos
       for (const draft of drafts) {
         if (!draft.previewUrl) continue;
         
+        if (draft.previewUrl.startsWith('blob:') && !draft.file) {
+          console.error("Tentativa de salvar URL blob sem arquivo no MultiThemeModal");
+          throw new Error(`Erro na imagem do tema "${draft.name}". Por favor, selecione o arquivo novamente.`);
+        }
+
         // If it's a new file, we use the base64 previewUrl which was generated after optimization
         // If it's an existing theme, previewUrl is the existing URL
         await onSave({
